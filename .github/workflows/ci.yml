@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-build-and-check-greasyfork:
+    name: Test, build, and check Greasy Fork target
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build userscripts
+        run: npm run build
+
+      - name: Check generated scripts syntax
+        run: |
+          node --check dist/md2bbcode.user.js
+          node --check dist/md2bbcode.greasyfork.user.js
+          node --check dist/md2bbcode.bgm.user.js
+
+      - name: Ensure dist files are committed
+        run: git diff --exit-code -- dist/
+
+      - name: Check Greasy Fork script page
+        run: |
+          curl --fail --location --silent --show-error \
+            "https://greasyfork.org/zh-CN/scripts/575652-bangumi-markdown-%E8%BD%AC-bbcode" \
+            > /dev/null
+
+      - name: Check Greasy Fork sync source
+        run: |
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/aronnaxlin/md2bbcode/main/dist/md2bbcode.greasyfork.user.js" \
+            | grep -F "@name         Bangumi Markdown 转 BBCode"

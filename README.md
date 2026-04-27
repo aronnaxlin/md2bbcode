@@ -62,6 +62,23 @@ npm.cmd run build
 tests/fixtures/bangumi-sample.md
 ```
 
+## 自动化
+
+仓库包含 GitHub Actions 检测：
+
+- 运行单元测试。
+- 构建三种脚本产物。
+- 对三个产物执行 `node --check`。
+- 检查 `dist/` 构建结果是否已经提交。
+- 检查 Greasy Fork 脚本页可访问。
+- 检查 Greasy Fork 建议同步源可访问：
+
+```text
+https://raw.githubusercontent.com/aronnaxlin/md2bbcode/main/dist/md2bbcode.greasyfork.user.js
+```
+
+Greasy Fork 自动更新建议在脚本后台设置「同步 URL」为上面的 raw 地址，并配置 GitHub push webhook。Greasy Fork 没有通用写入 API；它支持通过 GitHub/GitLab/Bitbucket 的 push 或 release webhook 检查同步更新。
+
 ## 致谢
 
 感谢 [furtherun/bangumi-blog-markdown-desktop](https://github.com/furtherun/bangumi-blog-markdown-desktop/tree/main) 的早期探索。这个项目验证了 CommonMark/Markdown AST 渲染到 Bangumi BBCode 的可行性，也提供了不少贴近 Bangumi 日志排版的经验规则。
