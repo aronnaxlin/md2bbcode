@@ -78,8 +78,8 @@ function injectStyle() {
       display: inline-flex !important;
       align-items: center;
       justify-content: center;
-      width: 23px;
-      height: 23px;
+      width: 26px;
+      height: 26px;
       box-sizing: border-box;
       text-indent: 0 !important;
       background-image: none !important;
@@ -91,8 +91,8 @@ function injectStyle() {
     }
     .${SCRIPT_CLASS}ConvertBtn svg {
       display: block;
-      width: 18px;
-      height: 18px;
+      width: 21px;
+      height: 21px;
       fill: currentColor;
       pointer-events: none;
     }

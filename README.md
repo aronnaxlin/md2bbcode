@@ -1,41 +1,67 @@
-# md2bbcode
+# Bangumi Markdown 转 BBCode
 
-Markdown to BBCode helper for Bangumi, planned as a userscript.
+给 Bangumi 编辑器添加一个轻量的 Markdown 转 BBCode 按钮。适合在吐槽、回复、日志等 Bangumi 的 BBCode 编辑区里先写 Markdown，再一键转换成站内可用格式。
 
-## Usage
+<p>
+  <a href="https://greasyfork.org/zh-CN/scripts/575652-bangumi-markdown-%E8%BD%AC-bbcode">
+    <img alt="在 Greasy Fork 安装" src="https://img.shields.io/badge/Greasy%20Fork-%E5%AE%89%E8%A3%85%E8%84%9A%E6%9C%AC-7a3cff?style=for-the-badge&logo=tampermonkey&logoColor=white">
+  </a>
+</p>
 
-The installable userscript is a single file:
+## 功能
 
-- `dist/md2bbcode.user.js`
+- 在 Bangumi 的 markItUp 编辑器工具栏中加入一个 Markdown 小图标。
+- 点击图标后，将选中的 Markdown 转成 BBCode。
+- 如果没有选中文本，则转换整个文本框。
+- 转换后触发标准 `input` / `change` 事件，可兼容已有 BBCode 预览组件。
+- 使用 `markdown-it` 解析 Markdown，不依赖简单正则硬凑。
 
-Greasy Fork is stricter about bundled dependency code. Use this build there:
+## 支持格式
 
-- `dist/md2bbcode.greasyfork.user.js`
+- 标题：`#` / `##` / `###` 转为 `[b][size=...]`
+- 粗体、斜体、删除线
+- 链接与图片
+- 引用
+- 有序 / 无序列表
+- 行内代码与代码块
+- 分割线
+- `<u>`、`<mask>`、`<details><summary>...`
+- 表格会退化为可读纯文本
 
-Bangumi components do not support `@require`; use the component build there:
+## 构建产物
 
-- `dist/md2bbcode.bgm.user.js`
+项目会生成三种脚本：
 
-Build it from source:
+- `dist/md2bbcode.user.js`：本地安装用，依赖打包进单文件。
+- `dist/md2bbcode.greasyfork.user.js`：Greasy Fork 用，通过 `@require` 引入可读的 `markdown-it` 浏览器构建，避免混淆检测。
+- `dist/md2bbcode.bgm.user.js`：Bangumi 组件用，不使用 `@require`，运行时通过 `$.getScript` 加载依赖。
+
+## 开发
+
+安装依赖：
 
 ```powershell
-npm.cmd run build
+npm.cmd install
 ```
 
-Then install `dist/md2bbcode.user.js` in Tampermonkey or another userscript manager.
-
-## Development
-
-Run tests:
+运行测试：
 
 ```powershell
 npm.cmd test
 ```
 
-The userscript adds one editor toolbar icon:
+构建脚本：
 
-- Markdown icon: converts selected Markdown to BBCode. If nothing is selected, it converts the whole textarea.
+```powershell
+npm.cmd run build
+```
 
-BBCode preview is intentionally not implemented here. If a Bangumi BBCode preview userscript is installed, this script stays compatible by updating the textarea and dispatching standard `input` / `change` events after conversion.
+测试用 Markdown 样本文本在：
 
-Markdown parsing is handled by `markdown-it`. The normal build bundles it into one file for local install; the Greasy Fork build uses `@require` with the readable upstream browser build to avoid obfuscation warnings; the Bangumi component build loads the same dependency at runtime with `$.getScript` when available.
+```text
+tests/fixtures/bangumi-sample.md
+```
+
+## 致谢
+
+感谢 [furtherun/bangumi-blog-markdown-desktop](https://github.com/furtherun/bangumi-blog-markdown-desktop/tree/main) 的早期探索。这个项目验证了 CommonMark/Markdown AST 渲染到 Bangumi BBCode 的可行性，也提供了不少贴近 Bangumi 日志排版的经验规则。
