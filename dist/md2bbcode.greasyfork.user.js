@@ -9,6 +9,8 @@
 // @match        http*://chii.in/*
 // @match        http*://bangumi.tv/*
 // @require      https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.js
+// @downloadURL   https://raw.githubusercontent.com/aronnaxlin/md2bbcode/main/dist/md2bbcode.greasyfork.user.js
+// @updateURL     https://raw.githubusercontent.com/aronnaxlin/md2bbcode/main/dist/md2bbcode.greasyfork.user.js
 // @grant        none
 // @license      MIT
 // ==/UserScript==

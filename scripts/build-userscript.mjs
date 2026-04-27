@@ -29,9 +29,14 @@ const result = await build({
 const bundled = new TextDecoder().decode(result.outputFiles[0].contents);
 await writeFile('dist/md2bbcode.user.js', `${commonHeader}\n${bundled}`);
 
+const greasyForkRawUrl = 'https://raw.githubusercontent.com/aronnaxlin/md2bbcode/main/dist/md2bbcode.greasyfork.user.js';
+
 const greasyForkHeader = commonHeader.replace(
   '// @grant        none',
-  '// @require      https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.js\n// @grant        none'
+  `// @require      https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.js
+// @downloadURL   ${greasyForkRawUrl}
+// @updateURL     ${greasyForkRawUrl}
+// @grant        none`
 );
 
 const core = await readFile('src/core/markdown-to-bbcode.js', 'utf8');

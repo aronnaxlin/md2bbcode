@@ -79,6 +79,13 @@ https://raw.githubusercontent.com/aronnaxlin/md2bbcode/main/dist/md2bbcode.greas
 
 Greasy Fork 自动更新建议在脚本后台设置「同步 URL」为上面的 raw 地址，并配置 GitHub push webhook。Greasy Fork 没有通用写入 API；它支持通过 GitHub/GitLab/Bitbucket 的 push 或 release webhook 检查同步更新。
 
+Greasy Fork 版脚本的元信息也指向同一份 raw 地址：
+
+```text
+@downloadURL https://raw.githubusercontent.com/aronnaxlin/md2bbcode/main/dist/md2bbcode.greasyfork.user.js
+@updateURL   https://raw.githubusercontent.com/aronnaxlin/md2bbcode/main/dist/md2bbcode.greasyfork.user.js
+```
+
 ## 致谢
 
 感谢 [furtherun/bangumi-blog-markdown-desktop](https://github.com/furtherun/bangumi-blog-markdown-desktop/tree/main) 的早期探索。这个项目验证了 CommonMark/Markdown AST 渲染到 Bangumi BBCode 的可行性，也提供了不少贴近 Bangumi 日志排版的经验规则。
