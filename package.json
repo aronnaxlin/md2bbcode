@@ -1,0 +1,14 @@
+{
+  "name": "md2bbcode",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-userscript.mjs",
+    "test": "node tests/markdown-to-bbcode.test.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0",
+    "markdown-it": "^14.1.1"
+  }
+}

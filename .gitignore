@@ -1,0 +1,10 @@
+node_modules/
+dist/*
+!dist/.gitkeep
+!dist/md2bbcode.user.js
+.env
+.env.*
+*.log
+.playwright-mcp/
+.DS_Store
+Thumbs.db
