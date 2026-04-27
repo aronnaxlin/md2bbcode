@@ -2,6 +2,8 @@ node_modules/
 dist/*
 !dist/.gitkeep
 !dist/md2bbcode.user.js
+!dist/md2bbcode.greasyfork.user.js
+!dist/md2bbcode.bgm.user.js
 .env
 .env.*
 *.log

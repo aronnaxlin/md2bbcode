@@ -2,7 +2,7 @@
 // @name         Bangumi Markdown 转 BBCode
 // @namespace    bangumi.md2bbcode
 // @version      0.0.1
-// @description  为 Bangumi 编辑器添加 Markdown 转 BBCode 和 BBCode 预览
+// @description  为 Bangumi 编辑器添加 Markdown 转 BBCode
 // @author       you
 // @icon         https://bgm.tv/img/favicon.ico
 // @match        http*://bgm.tv/*
