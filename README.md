@@ -1,6 +1,6 @@
 # Bangumi Markdown 转 BBCode
 
-给 Bangumi 编辑器添加一个轻量的 Markdown 转 BBCode 按钮。适合在吐槽、回复、日志等 Bangumi 的 BBCode 编辑区里先写 Markdown，再一键转换成站内可用格式。
+给 Bangumi 编辑器添加轻量的 Markdown / BBCode 双向转换按钮。适合在吐槽、回复、日志等 Bangumi 的 BBCode 编辑区里先写 Markdown，再一键转换成站内可用格式；也可以把已有 BBCode 回转成更容易编辑的 Markdown。
 
 <p>
   <a href="https://greasyfork.org/zh-CN/scripts/575652-bangumi-markdown-%E8%BD%AC-bbcode">
@@ -10,8 +10,8 @@
 
 ## 功能
 
-- 在 Bangumi 的 markItUp 编辑器工具栏中加入一个 Markdown 小图标。
-- 点击图标后，将选中的 Markdown 转成 BBCode。
+- 在 Bangumi 的 markItUp 编辑器工具栏中加入 Markdown 转 BBCode 和 BBCode 转 Markdown 图标。
+- 点击图标后，将选中的文本转换为目标格式。
 - 如果没有选中文本，则转换整个文本框。
 - 转换后触发标准 `input` / `change` 事件，可兼容已有 BBCode 预览组件。
 - 使用 `markdown-it` 解析 Markdown，不依赖简单正则硬凑。
@@ -26,6 +26,7 @@
 - 行内代码与代码块
 - 分割线
 - `<u>`、`<mask>`、`<details><summary>...`
+- BBCode 反向转换：`[b]`、`[i]`、`[s]`、`[u]`、`[url]`、`[img]`、`[quote]`、`[code]`、`[mask]`、`[color]`、`[size]`、`[font]`、`[align]`、`[list]`、`[olist]`
 - 表格会退化为可读纯文本
 
 ## 构建产物
@@ -60,6 +61,13 @@ npm.cmd run build
 
 ```text
 tests/fixtures/bangumi-sample.md
+```
+
+测试用 BBCode 反向转换样本文本在：
+
+```text
+tests/fixtures/bangumi-bbcode-sample.txt
+tests/fixtures/bangumi-bbcode-sample.expected.md
 ```
 
 ## 自动化

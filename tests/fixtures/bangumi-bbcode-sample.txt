@@ -1,0 +1,30 @@
+[b][size=24]BBCode 反向转换测试[/size][/b]
+
+这是一段混合格式：[b]粗体[/b]、[i]斜体[/i]、[s]删除线[/s]、[u]下划线[/u]。
+
+[color=red]红色文字[/color] 和 [size=18]较大文字[/size]，还有 [font=serif]字体标记[/font]。
+
+[url=https://bangumi.tv/group/topic/459295]Bangumi 小组话题[/url]
+[url]https://bangumi.tv/help/bbcode[/url]
+[img]https://lain.bgm.tv/pic/icon/l/000/00/00/1.jpg[/img]
+
+[quote=Aronnax]
+这里是带作者的引用。
+第二行引用。
+[/quote]
+
+[code=js]
+const site = 'Bangumi';
+console.log(site);
+[/code]
+
+[mask]这是一段剧透内容[/mask]
+
+[center]居中文本[/center]
+[align=right]右对齐文本[/align]
+
+[list][*]无序第一项[*]无序第二项，包含 [b]粗体[/b][/list]
+
+[olist][*]有序第一项[*]有序第二项[/olist]
+
+[unknown]未知标签保持原样[/unknown]

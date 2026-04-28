@@ -48,6 +48,19 @@ function preprocessMarkdown(source) {
         ? `\n[color=yellowgreen]${title}[/color] [mask]${content}[/mask]\n`
         : `\n[mask]${content}[/mask]\n`;
     })
+    .replace(/<span\s+style=(["'])([^"']*?)\1\s*>([\s\S]*?)<\/span>/gi, (_match, _quote, style, content) => {
+      const color = /(?:^|;)\s*color\s*:\s*([^;]+)/i.exec(style)?.[1]?.trim();
+      const size = /(?:^|;)\s*font-size\s*:\s*([0-9.]+)(?:px)?/i.exec(style)?.[1]?.trim();
+      const family = /(?:^|;)\s*font-family\s*:\s*([^;]+)/i.exec(style)?.[1]?.trim();
+
+      let value = content;
+      if (family) value = `[font=${family.replace(/^["']|["']$/g, '')}]${value}[/font]`;
+      if (size) value = `[size=${size}]${value}[/size]`;
+      if (color) value = `[color=${color}]${value}[/color]`;
+      return value;
+    })
+    .replace(/<div\s+align=(["']?)(left|center|right)\1\s*>([\s\S]*?)<\/div>/gi, '[$2]$3[/$2]')
+    .replace(/<spoiler>([\s\S]*?)<\/spoiler>/gi, '[mask]$1[/mask]')
     .replace(/<mask>([\s\S]*?)<\/mask>/gi, '[mask]$1[/mask]')
     .replace(/<u>([\s\S]*?)<\/u>/gi, '[u]$1[/u]');
 }
@@ -136,11 +149,323 @@ function normalizeBBCode(value) {
     .trim();
 }
 
+const bbcodeTagPattern = /\[(\/)?([a-z*]+)(?:=([^\]]*))?\]/gi;
+const headingSizeRanges = [
+  { min: 24, marker: '#' },
+  { min: 22, marker: '##' },
+  { min: 20, marker: '###' },
+  { min: 18, marker: '####' },
+  { min: 16, marker: '#####' }
+];
+
+function createRootNode() {
+  return { type: 'root', children: [] };
+}
+
+function createTextNode(value) {
+  return { type: 'text', value };
+}
+
+function createTagNode(name, attr, rawOpen) {
+  return {
+    type: 'tag',
+    name: normalizeBBCodeTagName(name),
+    attr,
+    rawOpen,
+    children: []
+  };
+}
+
+function normalizeBBCodeTagName(name) {
+  const normalized = String(name).toLowerCase();
+  return normalized === '*' ? 'li' : normalized;
+}
+
+function serializeBBCodeNode(node) {
+  if (node.type === 'text') return node.value;
+  if (node.type === 'root') return node.children.map(serializeBBCodeNode).join('');
+  return `${node.rawOpen}${node.children.map(serializeBBCodeNode).join('')}[/${node.name}]`;
+}
+
+function parseBBCode(source) {
+  const root = createRootNode();
+  const stack = [root];
+  let lastIndex = 0;
+  let match;
+
+  bbcodeTagPattern.lastIndex = 0;
+  while ((match = bbcodeTagPattern.exec(source))) {
+    if (match.index > lastIndex) {
+      stack[stack.length - 1].children.push(createTextNode(source.slice(lastIndex, match.index)));
+    }
+
+    const [raw, closing, rawName, attr] = match;
+    const name = normalizeBBCodeTagName(rawName);
+
+    if (closing) {
+      let openIndex = -1;
+      for (let index = stack.length - 1; index > 0; index -= 1) {
+        if (stack[index].type === 'tag' && stack[index].name === name) {
+          openIndex = index;
+          break;
+        }
+      }
+
+      while (openIndex > 0 && stack.length - 1 > openIndex && stack[stack.length - 1].name === 'li') {
+        stack.pop();
+      }
+
+      if (openIndex === stack.length - 1) {
+        stack.pop();
+      } else {
+        stack[stack.length - 1].children.push(createTextNode(raw));
+      }
+    } else {
+      if (name === 'li' && stack[stack.length - 1].name === 'li') {
+        stack.pop();
+      }
+      const node = createTagNode(name, attr ?? '', raw);
+      stack[stack.length - 1].children.push(node);
+      stack.push(node);
+    }
+
+    lastIndex = match.index + raw.length;
+  }
+
+  if (lastIndex < source.length) {
+    stack[stack.length - 1].children.push(createTextNode(source.slice(lastIndex)));
+  }
+
+  while (stack.length > 1) {
+    const dangling = stack.pop();
+    const parent = stack[stack.length - 1];
+    if (parent.children[parent.children.length - 1] === dangling) {
+      parent.children.pop();
+      parent.children.push(createTextNode(serializeBBCodeNode(dangling)));
+    }
+  }
+
+  return root;
+}
+
+function renderChildrenAsMarkdown(children) {
+  return children.map(renderBBCodeNodeAsMarkdown).join('');
+}
+
+function trimOuterBlankLines(value) {
+  return value.replace(/^\n+|\n+$/g, '');
+}
+
+function escapeHtmlAttribute(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function stripWrappingQuotes(value) {
+  return String(value).trim().replace(/^(['"])([\s\S]*)\1$/, '$2');
+}
+
+function escapeMarkdownLinkLabel(value) {
+  return value.replace(/([\\\[\]])/g, '\\$1');
+}
+
+function formatMarkdownDestination(value) {
+  const href = String(value).trim();
+  if (!href) return '';
+  return /[\s()<>]/.test(href) ? `<${href.replace(/>/g, '%3E')}>` : href;
+}
+
+function wrapMarkdown(value, marker) {
+  if (!value) return '';
+  const leading = /^\s*/.exec(value)[0];
+  const trailing = /\s*$/.exec(value)[0];
+  const core = value.slice(leading.length, value.length - trailing.length);
+  return core ? `${leading}${marker}${core}${marker}${trailing}` : value;
+}
+
+function renderQuote(value, attr) {
+  const content = value.trim();
+  if (!content) return '';
+  const cite = stripWrappingQuotes(attr);
+  const quoteBody = cite ? `**${cite}:**\n${content}` : content;
+  return quoteBody
+    .split('\n')
+    .map(line => `> ${line}`)
+    .join('\n');
+}
+
+function renderCodeBlock(value, attr) {
+  const content = trimOuterBlankLines(value);
+  const language = stripWrappingQuotes(attr).replace(/[^a-z0-9_+.-]/gi, '');
+  return `\`\`\`${language}\n${content}\n\`\`\``;
+}
+
+function renderUrl(value, attr) {
+  const href = attr || value.trim();
+  const destination = formatMarkdownDestination(href);
+  return destination ? `[${escapeMarkdownLinkLabel(value)}](${destination})` : value;
+}
+
+function renderImage(value) {
+  const src = value.trim();
+  const destination = formatMarkdownDestination(src);
+  return destination ? `![](${destination})` : '';
+}
+
+function renderHeadingSize(node, value) {
+  const numericSize = Number.parseFloat(stripWrappingQuotes(node.attr));
+  const marker = Number.isFinite(numericSize)
+    ? headingSizeRanges.find(range => numericSize >= range.min)?.marker
+    : '';
+  return marker ? `${marker} ${value.trim()}` : '';
+}
+
+function renderSize(node, value) {
+  const size = stripWrappingQuotes(node.attr);
+  if (size === '12' && node.children.length === 1 && node.children[0].type === 'tag' && node.children[0].name === 'color') {
+    const color = stripWrappingQuotes(node.children[0].attr).toLowerCase();
+    if (color === '#666' || color === '#666666') {
+      return `\`${renderChildrenAsMarkdown(node.children[0].children)}\``;
+    }
+  }
+
+  return size ? `<span style="font-size: ${escapeHtmlAttribute(size)}px">${value}</span>` : value;
+}
+
+function renderColor(node, value) {
+  const color = stripWrappingQuotes(node.attr);
+  const normalized = color.toLowerCase();
+  if (normalized === '#666' || normalized === '#666666') {
+    return `\`${value}\``;
+  }
+  return color ? `<span style="color: ${escapeHtmlAttribute(color)}">${value}</span>` : value;
+}
+
+function renderFont(node, value) {
+  const family = stripWrappingQuotes(node.attr);
+  return family ? `<span style="font-family: ${escapeHtmlAttribute(family)}">${value}</span>` : value;
+}
+
+function renderAligned(attr, value) {
+  const align = stripWrappingQuotes(attr).toLowerCase();
+  return align ? `<div align="${escapeHtmlAttribute(align)}">${trimOuterBlankLines(value)}</div>` : value;
+}
+
+function renderStrong(node, value) {
+  const onlyChild = node.children.length === 1 ? node.children[0] : null;
+  if (onlyChild?.type === 'tag' && onlyChild.name === 'size') {
+    const heading = renderHeadingSize(onlyChild, renderChildrenAsMarkdown(onlyChild.children));
+    return heading || wrapMarkdown(renderSize(onlyChild, renderChildrenAsMarkdown(onlyChild.children)), '**');
+  }
+  return wrapMarkdown(value, '**');
+}
+
+function renderList(node, ordered) {
+  let index = 1;
+  const lines = [];
+
+  for (const child of node.children) {
+    if (child.type === 'text') {
+      const text = child.value.trim();
+      if (text) lines.push(text);
+      continue;
+    }
+
+    if (child.type !== 'tag' || child.name !== 'li') {
+      const value = renderBBCodeNodeAsMarkdown(child).trim();
+      if (value) lines.push(value);
+      continue;
+    }
+
+    const value = renderChildrenAsMarkdown(child.children)
+      .trim()
+      .replace(/\n/g, '\n  ');
+    if (!value) continue;
+
+    const marker = ordered ? `${index}. ` : '- ';
+    lines.push(`${marker}${value}`);
+    index += 1;
+  }
+
+  return lines.join('\n');
+}
+
+function renderBBCodeNodeAsMarkdown(node) {
+  if (node.type === 'text') return node.value;
+  if (node.type === 'root') return renderChildrenAsMarkdown(node.children);
+
+  const value = renderChildrenAsMarkdown(node.children);
+
+  switch (node.name) {
+    case 'b':
+      return renderStrong(node, value);
+    case 'i':
+      return wrapMarkdown(value, '*');
+    case 'u':
+      return `<u>${value}</u>`;
+    case 's':
+      return wrapMarkdown(value, '~~');
+    case 'url':
+      return renderUrl(value, node.attr);
+    case 'email':
+      return renderUrl(value, `mailto:${node.attr || value.trim()}`);
+    case 'img':
+      return renderImage(value);
+    case 'quote':
+      return renderQuote(value, node.attr);
+    case 'code':
+      return renderCodeBlock(value, node.attr);
+    case 'mask':
+      return `<mask>${value}</mask>`;
+    case 'spoiler':
+      return `<spoiler>${value}</spoiler>`;
+    case 'size':
+      return renderSize(node, value);
+    case 'color':
+      return renderColor(node, value);
+    case 'font':
+      return renderFont(node, value);
+    case 'align':
+      return renderAligned(node.attr, value);
+    case 'left':
+    case 'center':
+    case 'right':
+      return renderAligned(node.name, value);
+    case 'list':
+      return renderList(node, ['1', 'decimal', 'number', 'ordered', 'ol'].includes(stripWrappingQuotes(node.attr).toLowerCase()));
+    case 'ul':
+      return renderList(node, false);
+    case 'ol':
+    case 'olist':
+      return renderList(node, true);
+    case 'li':
+      return `- ${value.trim()}`;
+    default:
+      return serializeBBCodeNode(node);
+  }
+}
+
+function normalizeMarkdown(value) {
+  return value
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+export function bbcodeToMarkdown(source) {
+  if (!source) return '';
+  return normalizeMarkdown(renderBBCodeNodeAsMarkdown(parseBBCode(String(source))));
+}
+
 export function markdownToBBCode(source) {
   if (!source) return '';
   return normalizeBBCode(markdown.render(preprocessMarkdown(source), { listStack: [] }));
 }
 
 export const md2bbcode = {
-  markdownToBBCode
+  markdownToBBCode,
+  bbcodeToMarkdown
 };
