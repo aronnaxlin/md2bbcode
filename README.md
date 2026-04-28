@@ -6,7 +6,15 @@
   <a href="https://greasyfork.org/zh-CN/scripts/575652-bangumi-markdown-%E8%BD%AC-bbcode">
     <img alt="在 Greasy Fork 安装" src="https://img.shields.io/badge/Greasy%20Fork-%E5%AE%89%E8%A3%85%E8%84%9A%E6%9C%AC-7a3cff?style=for-the-badge&logo=tampermonkey&logoColor=white">
   </a>
+  <a href="https://gitee.com/aronnaxlin/md2bbcode/raw/main/dist/md2bbcode.user.js">
+    <img alt="从 Gitee 安装" src="https://img.shields.io/badge/Gitee-%E5%A4%87%E7%94%A8%E5%AE%89%E8%A3%85-C71D23?style=for-the-badge&logo=gitee&logoColor=white">
+  </a>
 </p>
+
+## 安装
+
+- 推荐从 [Greasy Fork](https://greasyfork.org/zh-CN/scripts/575652-bangumi-markdown-%E8%BD%AC-bbcode) 安装。
+- 也可以从 [Gitee raw](https://gitee.com/aronnaxlin/md2bbcode/raw/main/dist/md2bbcode.user.js) 安装备用单文件版。
 
 ## 功能
 
