@@ -1,6 +1,6 @@
 # Bangumi Markdown 转 BBCode
 
-给 Bangumi 编辑器添加轻量的 Markdown / BBCode 双向转换按钮。适合在吐槽、回复、日志等 Bangumi 的 BBCode 编辑区里先写 Markdown，再一键转换成站内可用格式；也可以把已有 BBCode 回转成更容易编辑的 Markdown。
+在 Bangumi 发帖、回复、写日志时，用 Markdown 先把内容写顺，再一键转换成站内可用的 BBCode。也可以把已有 BBCode 转回 Markdown，方便继续编辑。
 
 <p>
   <a href="https://greasyfork.org/zh-CN/scripts/575652-bangumi-markdown-%E8%BD%AC-bbcode">
@@ -16,11 +16,130 @@
 
 ## 安装
 
-请先安装 [Tampermonkey](https://www.tampermonkey.net/) 或兼容的用户脚本管理器，然后从下面任一入口安装：
+请先安装 [Tampermonkey](https://www.tampermonkey.net/) 或兼容的用户脚本管理器，然后任选一个入口安装：
 
-- 推荐从 [Greasy Fork 脚本页](https://greasyfork.org/zh-CN/scripts/575652-bangumi-markdown-%E8%BD%AC-bbcode) 安装。
-- 从 [GitHub Raw](https://github.com/aronnaxlin/md2bbcode/raw/refs/heads/main/dist/md2bbcode.greasyfork.user.js) 安装。
-- 从 [Gitee Raw](https://raw.giteeusercontent.com/aronnaxlin/md2bbcode/raw/main/dist/md2bbcode.greasyfork.user.js) 安装。
+- 推荐：[Greasy Fork 脚本页](https://greasyfork.org/zh-CN/scripts/575652-bangumi-markdown-%E8%BD%AC-bbcode)
+- 备用：[GitHub Raw](https://github.com/aronnaxlin/md2bbcode/raw/refs/heads/main/dist/md2bbcode.greasyfork.user.js)
+- 备用：[Gitee Raw](https://raw.giteeusercontent.com/aronnaxlin/md2bbcode/raw/main/dist/md2bbcode.greasyfork.user.js)
+
+安装后刷新 Bangumi 页面。进入支持 BBCode 的编辑框时，工具栏里会多出 Markdown 和 BBCode 两个小按钮。
+
+## 能做什么
+
+- **Markdown 转 BBCode**：把 `**粗体**`、`[链接](https://example.com)`、引用、列表、代码块等 Markdown 写法转成 Bangumi 支持的 BBCode。
+- **BBCode 转 Markdown**：把 `[b]粗体[/b]`、`[url=...]链接[/url]`、`[quote]引用[/quote]` 等内容转回 Markdown。
+- **只转换选中的部分**：选中文本后点按钮，只会转换选区；没选中时转换整个编辑框。
+- **自动出现在常用编辑框**：小组、条目讨论、日志、评论、回复等地方都会自动识别。
+- **支持 Re:Dollars 聊天窗口**：聊天输入框也会有转换按钮，但会使用更保守的聊天专用转换规则。
+- **可在组件设置里关闭**：Bangumi 组件设置面板里会出现独立的 `MD2BBCode` 标签页，可以控制按钮是否显示。
+
+## 使用方式
+
+在编辑框里写 Markdown：
+
+```markdown
+## 标题
+
+这是 **粗体**，这是 [链接](https://bangumi.tv)。
+
+> 引用内容
+
+- 第一项
+- 第二项
+```
+
+点击 **Markdown -> BBCode** 按钮后会变成 Bangumi 可用格式：
+
+```text
+[b][size=22]标题[/size][/b]
+
+这是 [b]粗体[/b]，这是 [url=https://bangumi.tv]链接[/url]。
+
+[quote]引用内容[/quote]
+
+* 第一项
+* 第二项
+```
+
+如果你正在编辑别人留下的 BBCode，也可以点击 **BBCode -> Markdown** 转回更容易修改的文本。
+
+## 支持的编辑场景
+
+脚本会尽量只增强真正需要 BBCode 的输入区，不会跑到搜索框里。
+
+目前重点支持：
+
+- 小组话题和回复
+- 条目讨论和评论
+- 日志 / blog 编辑
+- 常见回复框、评论框、编辑框
+- 私信等 Bangumi 标准编辑器
+- Re:Dollars 聊天窗口
+- 点击后才生成工具栏的动态编辑框
+
+明确排除：
+
+- 顶部搜索框
+- 主页 timeline 吐槽框
+- 其它不适合完整 BBCode 的输入区域
+
+## 支持的格式
+
+Markdown 转 BBCode 支持：
+
+- 标题
+- 粗体、斜体、删除线、下划线
+- 链接、图片
+- 引用
+- 无序列表、有序列表
+- 行内代码、代码块
+- 分割线
+- 表格转为可读纯文本
+- `<mask>` / `<spoiler>` 隐藏内容
+- `<details><summary>标题</summary>内容</details>` 折叠内容
+- 字色、字号、字体、对齐等常见 HTML 样式写法
+
+BBCode 转 Markdown 支持：
+
+- `[b]`、`[i]`、`[s]`、`[u]`
+- `[url]`、`[img]`
+- `[quote]`、`[code]`、`[mask]`
+- `[color]`、`[size]`、`[font]`
+- `[align]`、`[left]`、`[center]`、`[right]`
+- `[list]`、`[olist]`
+- 常见 Bangumi 标题写法会尽量还原成 Markdown 标题
+
+未识别的 BBCode 会尽量保留原文，避免误删内容。
+
+## Re:Dollars 聊天模式
+
+Re:Dollars 聊天支持的 BBCode 比普通编辑器少，所以脚本会更保守：
+
+- 会转换：粗体、斜体、下划线、删除线、代码、链接、mask。
+- 不会生成复杂排版标签。
+- 图片等聊天不支持的内容会尽量保持原样，而不是强行转成不可用 BBCode。
+
+## 设置
+
+打开 Bangumi 组件设置，会看到一个和「通用」平级的 `MD2BBCode` 标签页。
+
+里面可以分别设置：
+
+- **编辑器工具栏按钮**
+- **Re:Dollars 聊天按钮**
+
+每一项都有三个选项：
+
+- 显示两个按钮
+- 只显示 Markdown -> BBCode
+- 不显示
+
+## 说明
+
+- 链接会尽量保留原样，不会主动把中文链接、百分号、已编码 URL 再转义一遍。
+- 危险链接如 `javascript:` 不会被转换成可点击 BBCode 链接。
+- 脚本会监听动态加载的编辑框，所以大多数“点开后才出现编辑器”的页面也能正常显示按钮。
+- 如果按钮没有出现，可以先刷新页面，或点击进入编辑框后稍等一下。
 
 ## 项目地址
 
@@ -28,97 +147,26 @@
 - [Gitee 源码仓库](https://gitee.com/aronnaxlin/md2bbcode)
 - [Greasy Fork 信息页](https://greasyfork.org/zh-CN/scripts/575652-bangumi-markdown-%E8%BD%AC-bbcode)
 
-## 功能
+## 开发
 
-- **智能编辑器识别**：自动识别 Bangumi 的 markItUp 编辑器、普通回复框、日志编辑框等，**不会**污染搜索框、主页 timeline 吐槽框等无关输入框。
-- **双向转换**：在编辑器工具栏中提供 **Markdown → BBCode** 与 **BBCode → Markdown** 两个按钮，点击即可转换。
-- **选区感知**：有选中文本时仅转换选区；无选区时转换全文。
-- **多场景覆盖**：支持小组话题、条目讨论、日志、评论、私信（PM）等 Bangumi 标准编辑器。
-- **Re:Dollars 聊天窗口支持**：在 Re:Dollars（班固米聊天）的输入框头部提供转换按钮，适配 `contenteditable` 富文本编辑器。
-- **聊天专用有限转换器**：Re:Dollars 聊天仅支持 `[b]`、`[i]`、`[u]`、`[s]`、`[code]`、`[url]`、`[mask]` 标签；聊天模式只转换这些标签，其余内容保持原样，不会生成聊天不支持的 BBCode。
-- **动态检测**：通过 `MutationObserver` 监听 markItUp 工具栏的延迟生成，也通过 `focusin` 捕获无原生工具栏的编辑器，确保各种动态加载场景下按钮都能正确注入。
-- **事件兼容**：转换后自动触发 `input` / `change` 事件，可与 Bangumi 的 BBCode 实时预览等已有组件协同工作。
-- **明暗主题自适应**：按钮继承官方 markItUp 图标的颜色与滤镜，在亮色和暗色主题下均保持视觉一致。
-- **可靠解析**：使用 `markdown-it` 解析 Markdown，不依赖简单正则硬凑。
-
-## 支持格式
-
-- 标题：`#` / `##` / `###` 转为 `[b][size=...]`
-- 粗体、斜体、删除线
-- 链接与图片
-- 引用
-- 有序 / 无序列表
-- 行内代码与代码块
-- 分割线
-- `<u>`、`<mask>`、`<details><summary>...`
-- BBCode 反向转换：`[b]`、`[i]`、`[s]`、`[u]`、`[url]`、`[img]`、`[quote]`、`[code]`、`[mask]`、`[color]`、`[size]`、`[font]`、`[align]`、`[list]`、`[olist]`
-- 表格会退化为可读纯文本
-
-## 构建产物
+```powershell
+npm.cmd install
+npm.cmd test
+npm.cmd run build
+```
 
 项目会生成三种脚本：
 
 - `dist/md2bbcode.user.js`：本地安装用，依赖打包进单文件。
-- `dist/md2bbcode.greasyfork.user.js`：Greasy Fork 用，通过 `@require` 引入可读的 `markdown-it` 浏览器构建，避免混淆检测。
-- `dist/md2bbcode.bgm.user.js`：Bangumi 组件用，不使用 `@require`，运行时通过 `$.getScript` 加载依赖。
+- `dist/md2bbcode.greasyfork.user.js`：Greasy Fork 用。
+- `dist/md2bbcode.bgm.user.js`：Bangumi 组件用。
 
-## 开发
-
-安装依赖：
-
-```powershell
-npm.cmd install
-```
-
-运行测试：
-
-```powershell
-npm.cmd test
-```
-
-构建脚本：
-
-```powershell
-npm.cmd run build
-```
-
-测试用 Markdown 样本文本在：
-
-```text
-tests/fixtures/bangumi-sample.md
-```
-
-测试用 BBCode 反向转换样本文本在：
-
-```text
-tests/fixtures/bangumi-bbcode-sample.txt
-tests/fixtures/bangumi-bbcode-sample.expected.md
-```
-
-## 自动化
-
-仓库包含 GitHub Actions 检测：
-
-- 运行单元测试。
-- 构建三种脚本产物。
-- 对三个产物执行 `node --check`。
-- 检查 `dist/` 构建结果是否已经提交。
-- 检查 Greasy Fork 脚本页可访问。
-- 检查 Greasy Fork 建议同步源可访问：
+Greasy Fork 同步源：
 
 ```text
 https://github.com/aronnaxlin/md2bbcode/raw/refs/heads/main/dist/md2bbcode.greasyfork.user.js
 ```
 
-Greasy Fork 自动更新建议在脚本后台设置「同步 URL」为上面的 raw 地址，并配置 GitHub push webhook。Greasy Fork 没有通用写入 API；它支持通过 GitHub/GitLab/Bitbucket 的 push 或 release webhook 检查同步更新。
-
-Greasy Fork 版脚本的元信息也指向同一份 raw 地址：
-
-```text
-@downloadURL https://github.com/aronnaxlin/md2bbcode/raw/refs/heads/main/dist/md2bbcode.greasyfork.user.js
-@updateURL   https://github.com/aronnaxlin/md2bbcode/raw/refs/heads/main/dist/md2bbcode.greasyfork.user.js
-```
-
 ## 致谢
 
-感谢 [furtherun/bangumi-blog-markdown-desktop](https://github.com/furtherun/bangumi-blog-markdown-desktop/tree/main) 的早期探索。这个项目验证了 CommonMark/Markdown AST 渲染到 Bangumi BBCode 的可行性，也提供了不少贴近 Bangumi 日志排版的经验规则。
+感谢 [furtherun/bangumi-blog-markdown-desktop](https://github.com/furtherun/bangumi-blog-markdown-desktop/) 的早期探索。这个项目验证了 CommonMark/Markdown AST 渲染到 Bangumi BBCode 的可行性，也提供了不少贴近 Bangumi 日志排版的经验规则。
