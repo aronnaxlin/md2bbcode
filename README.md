@@ -18,11 +18,16 @@
 
 ## 功能
 
-- 在 Bangumi 的 markItUp 编辑器工具栏中加入 Markdown 转 BBCode 和 BBCode 转 Markdown 图标。
-- 点击图标后，将选中的文本转换为目标格式。
-- 如果没有选中文本，则转换整个文本框。
-- 转换后触发标准 `input` / `change` 事件，可兼容已有 BBCode 预览组件。
-- 使用 `markdown-it` 解析 Markdown，不依赖简单正则硬凑。
+- **智能编辑器识别**：自动识别 Bangumi 的 markItUp 编辑器、普通回复框、日志编辑框等，**不会**污染搜索框、主页 timeline 吐槽框等无关输入框。
+- **双向转换**：在编辑器工具栏中提供 **Markdown → BBCode** 与 **BBCode → Markdown** 两个按钮，点击即可转换。
+- **选区感知**：有选中文本时仅转换选区；无选区时转换全文。
+- **多场景覆盖**：支持小组话题、条目讨论、日志、评论、私信（PM）等 Bangumi 标准编辑器。
+- **Re:Dollars 聊天窗口支持**：在 Re:Dollars（班固米聊天）的输入框头部提供转换按钮，适配 `contenteditable` 富文本编辑器。
+- **聊天专用有限转换器**：Re:Dollars 聊天仅支持 `[b]`、`[i]`、`[u]`、`[s]`、`[code]`、`[url]`、`[mask]` 标签；聊天模式只转换这些标签，其余内容保持原样，不会生成聊天不支持的 BBCode。
+- **动态检测**：通过 `MutationObserver` 监听 markItUp 工具栏的延迟生成，也通过 `focusin` 捕获无原生工具栏的编辑器，确保各种动态加载场景下按钮都能正确注入。
+- **事件兼容**：转换后自动触发 `input` / `change` 事件，可与 Bangumi 的 BBCode 实时预览等已有组件协同工作。
+- **明暗主题自适应**：按钮继承官方 markItUp 图标的颜色与滤镜，在亮色和暗色主题下均保持视觉一致。
+- **可靠解析**：使用 `markdown-it` 解析 Markdown，不依赖简单正则硬凑。
 
 ## 支持格式
 
