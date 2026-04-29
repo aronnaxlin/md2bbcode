@@ -6,15 +6,27 @@
   <a href="https://greasyfork.org/zh-CN/scripts/575652-bangumi-markdown-%E8%BD%AC-bbcode">
     <img alt="在 Greasy Fork 安装" src="https://img.shields.io/badge/Greasy%20Fork-%E5%AE%89%E8%A3%85%E8%84%9A%E6%9C%AC-7a3cff?style=for-the-badge&logo=tampermonkey&logoColor=white">
   </a>
-  <a href="https://gitee.com/aronnaxlin/md2bbcode/raw/main/dist/md2bbcode.user.js">
-    <img alt="从 Gitee 安装" src="https://img.shields.io/badge/Gitee-%E5%A4%87%E7%94%A8%E5%AE%89%E8%A3%85-C71D23?style=for-the-badge&logo=gitee&logoColor=white">
+  <a href="https://github.com/aronnaxlin/md2bbcode/raw/refs/heads/main/dist/md2bbcode.greasyfork.user.js">
+    <img alt="从 GitHub Raw 安装" src="https://img.shields.io/badge/GitHub-Raw%20%E5%AE%89%E8%A3%85-181717?style=for-the-badge&logo=github&logoColor=white">
+  </a>
+  <a href="https://raw.giteeusercontent.com/aronnaxlin/md2bbcode/raw/main/dist/md2bbcode.greasyfork.user.js">
+    <img alt="从 Gitee Raw 安装" src="https://img.shields.io/badge/Gitee-Raw%20%E5%A4%87%E7%94%A8-C71D23?style=for-the-badge&logo=gitee&logoColor=white">
   </a>
 </p>
 
 ## 安装
 
-- 推荐从 [Greasy Fork](https://greasyfork.org/zh-CN/scripts/575652-bangumi-markdown-%E8%BD%AC-bbcode) 安装。
-- 也可以从 [Gitee raw](https://gitee.com/aronnaxlin/md2bbcode/raw/main/dist/md2bbcode.user.js) 安装备用单文件版。
+请先安装 [Tampermonkey](https://www.tampermonkey.net/) 或兼容的用户脚本管理器，然后从下面任一入口安装：
+
+- 推荐从 [Greasy Fork 脚本页](https://greasyfork.org/zh-CN/scripts/575652-bangumi-markdown-%E8%BD%AC-bbcode) 安装。
+- 从 [GitHub Raw](https://github.com/aronnaxlin/md2bbcode/raw/refs/heads/main/dist/md2bbcode.greasyfork.user.js) 安装。
+- 从 [Gitee Raw](https://raw.giteeusercontent.com/aronnaxlin/md2bbcode/raw/main/dist/md2bbcode.greasyfork.user.js) 安装。
+
+## 项目地址
+
+- [GitHub 源码仓库](https://github.com/aronnaxlin/md2bbcode)
+- [Gitee 源码仓库](https://gitee.com/aronnaxlin/md2bbcode)
+- [Greasy Fork 信息页](https://greasyfork.org/zh-CN/scripts/575652-bangumi-markdown-%E8%BD%AC-bbcode)
 
 ## 功能
 
@@ -95,7 +107,7 @@ tests/fixtures/bangumi-bbcode-sample.expected.md
 - 检查 Greasy Fork 建议同步源可访问：
 
 ```text
-https://raw.githubusercontent.com/aronnaxlin/md2bbcode/main/dist/md2bbcode.greasyfork.user.js
+https://github.com/aronnaxlin/md2bbcode/raw/refs/heads/main/dist/md2bbcode.greasyfork.user.js
 ```
 
 Greasy Fork 自动更新建议在脚本后台设置「同步 URL」为上面的 raw 地址，并配置 GitHub push webhook。Greasy Fork 没有通用写入 API；它支持通过 GitHub/GitLab/Bitbucket 的 push 或 release webhook 检查同步更新。
@@ -103,8 +115,8 @@ Greasy Fork 自动更新建议在脚本后台设置「同步 URL」为上面的 
 Greasy Fork 版脚本的元信息也指向同一份 raw 地址：
 
 ```text
-@downloadURL https://raw.githubusercontent.com/aronnaxlin/md2bbcode/main/dist/md2bbcode.greasyfork.user.js
-@updateURL   https://raw.githubusercontent.com/aronnaxlin/md2bbcode/main/dist/md2bbcode.greasyfork.user.js
+@downloadURL https://github.com/aronnaxlin/md2bbcode/raw/refs/heads/main/dist/md2bbcode.greasyfork.user.js
+@updateURL   https://github.com/aronnaxlin/md2bbcode/raw/refs/heads/main/dist/md2bbcode.greasyfork.user.js
 ```
 
 ## 致谢

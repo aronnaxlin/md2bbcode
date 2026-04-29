@@ -29,7 +29,7 @@ const result = await build({
 const bundled = new TextDecoder().decode(result.outputFiles[0].contents);
 await writeFile('dist/md2bbcode.user.js', `${commonHeader}\n${bundled}`);
 
-const greasyForkRawUrl = 'https://raw.githubusercontent.com/aronnaxlin/md2bbcode/main/dist/md2bbcode.greasyfork.user.js';
+const greasyForkRawUrl = 'https://github.com/aronnaxlin/md2bbcode/raw/refs/heads/main/dist/md2bbcode.greasyfork.user.js';
 
 const greasyForkHeader = commonHeader.replace(
   '// @grant        none',

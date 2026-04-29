@@ -52,5 +52,5 @@ jobs:
       - name: Check Greasy Fork sync source
         run: |
           curl --fail --location --silent --show-error \
-            "https://raw.githubusercontent.com/aronnaxlin/md2bbcode/main/dist/md2bbcode.greasyfork.user.js" \
+            "https://github.com/aronnaxlin/md2bbcode/raw/refs/heads/main/dist/md2bbcode.greasyfork.user.js" \
             | grep -F "@name         Bangumi Markdown 转 BBCode"
