@@ -700,13 +700,26 @@
     function addChatConversionButtons(editor) {
       if (editor.dataset.md2bbcodeEnhanced === 'true') return;
     
-      const wrapper = editor.closest('.dollars-input-wrapper');
-      if (!wrapper) return;
+      // Find the chat window header buttons area
+      // The chat window wrapper is typically #dollars-chat-window or .dollars-chat-window
+      // Note: closest() returns the nearest ancestor, so we walk up manually to ensure
+      // we find the outer chat window rather than an inner container like #dollars-main-chat.
+      let chatWindow = null;
+      let el = editor;
+      while (el) {
+        if (el.matches?.('#dollars-chat-window, .dollars-chat-window')) {
+          chatWindow = el;
+          break;
+        }
+        el = el.parentElement;
+      }
+      if (!chatWindow) return;
     
-      // Find the input-actions container next to the wrapper
-      const actions = wrapper.nextElementSibling;
-      if (!actions || !actions.classList?.contains('input-actions')) return;
-      if (actions.querySelector(`.${SCRIPT_CLASS}ChatBtn`)) return;
+      const headerButtons = chatWindow.querySelector('.header-buttons');
+      if (!headerButtons) return;
+    
+      // Avoid duplicate buttons in the same chat window
+      if (headerButtons.querySelector(`.${SCRIPT_CLASS}ChatBtn`)) return;
     
       const convertBtn = createChatButton(
         `${SCRIPT_CLASS}ChatConvertBtn`,
@@ -739,14 +752,14 @@
       bindChatButton(convertBtn, 'markdown-to-bbcode');
       bindChatButton(reverseBtn, 'bbcode-to-markdown');
     
-      // Insert before the send button (last child)
-      const sendBtn = actions.querySelector('.send-btn');
-      if (sendBtn) {
-        actions.insertBefore(convertBtn, sendBtn);
-        actions.insertBefore(reverseBtn, sendBtn);
+      // Insert before the search button in header-buttons
+      const searchBtn = headerButtons.querySelector('#dollars-search-btn');
+      if (searchBtn) {
+        headerButtons.insertBefore(convertBtn, searchBtn);
+        headerButtons.insertBefore(reverseBtn, searchBtn);
       } else {
-        actions.append(convertBtn);
-        actions.append(reverseBtn);
+        headerButtons.prepend(reverseBtn);
+        headerButtons.prepend(convertBtn);
       }
     
       editor.dataset.md2bbcodeEnhanced = 'true';
@@ -897,30 +910,32 @@
           list-style: none;
         }
         .${SCRIPT_CLASS}ChatBtn {
-          display: inline-flex;
+          display: flex;
           align-items: center;
           justify-content: center;
-          width: 32px;
-          height: 32px;
+          width: 24px;
+          height: 24px;
           padding: 0;
-          margin: 0 2px 0 0;
+          margin: 0 4px 0 0;
           border: none;
-          border-radius: 6px;
+          border-radius: 4px;
           background: transparent;
           color: inherit;
           cursor: pointer;
-          opacity: .7;
-          transition: opacity .15s ease;
+          opacity: .75;
+          transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+                      opacity 0.15s ease;
         }
         .${SCRIPT_CLASS}ChatBtn:hover {
           opacity: 1;
-          background: rgba(128,128,128,.15);
+          transform: scale(1.15);
         }
         .${SCRIPT_CLASS}ChatBtn svg {
           display: block;
           width: 18px;
           height: 18px;
           pointer-events: none;
+          margin: auto;
         }
         .${SCRIPT_CLASS}ChatBtn.${SCRIPT_CLASS}Loading {
           opacity: .35;

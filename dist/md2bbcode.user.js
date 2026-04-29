@@ -5946,11 +5946,19 @@ ${content}
   function addChatConversionButtons(editor) {
     var _a2;
     if (editor.dataset.md2bbcodeEnhanced === "true") return;
-    const wrapper = editor.closest(".dollars-input-wrapper");
-    if (!wrapper) return;
-    const actions = wrapper.nextElementSibling;
-    if (!actions || !((_a2 = actions.classList) == null ? void 0 : _a2.contains("input-actions"))) return;
-    if (actions.querySelector(`.${SCRIPT_CLASS}ChatBtn`)) return;
+    let chatWindow = null;
+    let el = editor;
+    while (el) {
+      if ((_a2 = el.matches) == null ? void 0 : _a2.call(el, "#dollars-chat-window, .dollars-chat-window")) {
+        chatWindow = el;
+        break;
+      }
+      el = el.parentElement;
+    }
+    if (!chatWindow) return;
+    const headerButtons = chatWindow.querySelector(".header-buttons");
+    if (!headerButtons) return;
+    if (headerButtons.querySelector(`.${SCRIPT_CLASS}ChatBtn`)) return;
     const convertBtn = createChatButton(
       `${SCRIPT_CLASS}ChatConvertBtn`,
       "Markdown \u8F6C BBCode\uFF08\u6709\u9009\u533A\u65F6\u53EA\u8F6C\u6362\u9009\u533A\uFF09",
@@ -5978,13 +5986,13 @@ ${content}
     }
     bindChatButton(convertBtn, "markdown-to-bbcode");
     bindChatButton(reverseBtn, "bbcode-to-markdown");
-    const sendBtn = actions.querySelector(".send-btn");
-    if (sendBtn) {
-      actions.insertBefore(convertBtn, sendBtn);
-      actions.insertBefore(reverseBtn, sendBtn);
+    const searchBtn = headerButtons.querySelector("#dollars-search-btn");
+    if (searchBtn) {
+      headerButtons.insertBefore(convertBtn, searchBtn);
+      headerButtons.insertBefore(reverseBtn, searchBtn);
     } else {
-      actions.append(convertBtn);
-      actions.append(reverseBtn);
+      headerButtons.prepend(reverseBtn);
+      headerButtons.prepend(convertBtn);
     }
     editor.dataset.md2bbcodeEnhanced = "true";
   }
@@ -6095,30 +6103,32 @@ ${content}
       list-style: none;
     }
     .${SCRIPT_CLASS}ChatBtn {
-      display: inline-flex;
+      display: flex;
       align-items: center;
       justify-content: center;
-      width: 32px;
-      height: 32px;
+      width: 24px;
+      height: 24px;
       padding: 0;
-      margin: 0 2px 0 0;
+      margin: 0 4px 0 0;
       border: none;
-      border-radius: 6px;
+      border-radius: 4px;
       background: transparent;
       color: inherit;
       cursor: pointer;
-      opacity: .7;
-      transition: opacity .15s ease;
+      opacity: .75;
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+                  opacity 0.15s ease;
     }
     .${SCRIPT_CLASS}ChatBtn:hover {
       opacity: 1;
-      background: rgba(128,128,128,.15);
+      transform: scale(1.15);
     }
     .${SCRIPT_CLASS}ChatBtn svg {
       display: block;
       width: 18px;
       height: 18px;
       pointer-events: none;
+      margin: auto;
     }
     .${SCRIPT_CLASS}ChatBtn.${SCRIPT_CLASS}Loading {
       opacity: .35;
