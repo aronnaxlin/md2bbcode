@@ -5437,7 +5437,7 @@
     return value == null ? "" : value;
   }
   function isSafeLink(url) {
-    return !unsafeProtocol.test(url);
+    return !unsafeProtocol.test(url) || safeImageDataProtocol.test(url);
   }
   function isSafeImage(url) {
     return !unsafeProtocol.test(url) || safeImageDataProtocol.test(url);
@@ -5450,25 +5450,35 @@
     return value.replace(/[\t\r\f\v]+/g, " ").replace(/\n+/g, " ").replace(/ {2,}/g, "\n").trim();
   }
   function preprocessMarkdown(source) {
-    return String(source).replace(/<!--[\s\S]*?-->/g, "").replace(/<details>\s*(?:<summary>([\s\S]*?)<\/summary>)?\s*([\s\S]*?)<\/details>/gi, (_match, summary = "", body = "") => {
-      const title = summary.trim();
-      const content = compactDetailsBody(body);
-      return title ? `
+    let result = String(source).replace(/<!--[\s\S]*?-->/g, "");
+    let prev;
+    do {
+      prev = result;
+      result = result.replace(/<details>\s*(?:<summary>([\s\S]*?)<\/summary>)?\s*([\s\S]*?)<\/details>/i, (_match, summary = "", body = "") => {
+        const title = summary.trim();
+        const content = compactDetailsBody(body);
+        return title ? `
 [color=yellowgreen]${title}[/color] [mask]${content}[/mask]
 ` : `
 [mask]${content}[/mask]
 `;
-    }).replace(/<span\s+style=(["'])([^"']*?)\1\s*>([\s\S]*?)<\/span>/gi, (_match, _quote, style, content) => {
-      var _a2, _b, _c, _d, _e, _f;
-      const color = (_b = (_a2 = /(?:^|;)\s*color\s*:\s*([^;]+)/i.exec(style)) == null ? void 0 : _a2[1]) == null ? void 0 : _b.trim();
-      const size = (_d = (_c = /(?:^|;)\s*font-size\s*:\s*([0-9.]+)(?:px)?/i.exec(style)) == null ? void 0 : _c[1]) == null ? void 0 : _d.trim();
-      const family = (_f = (_e = /(?:^|;)\s*font-family\s*:\s*([^;]+)/i.exec(style)) == null ? void 0 : _e[1]) == null ? void 0 : _f.trim();
-      let value = content;
-      if (family) value = `[font=${family.replace(/^["']|["']$/g, "")}]${value}[/font]`;
-      if (size) value = `[size=${size}]${value}[/size]`;
-      if (color) value = `[color=${color}]${value}[/color]`;
-      return value;
-    }).replace(/<div\s+align=(["']?)(left|center|right)\1\s*>([\s\S]*?)<\/div>/gi, "[$2]$3[/$2]").replace(/<spoiler>([\s\S]*?)<\/spoiler>/gi, "[mask]$1[/mask]").replace(/<mask>([\s\S]*?)<\/mask>/gi, "[mask]$1[/mask]").replace(/<u>([\s\S]*?)<\/u>/gi, "[u]$1[/u]");
+      });
+    } while (result !== prev);
+    do {
+      prev = result;
+      result = result.replace(/<span\s+style=(["'])([^"']*?)\1\s*>([\s\S]*?)<\/span>/i, (_match, _quote, style, content) => {
+        var _a2, _b, _c, _d, _e, _f;
+        const color = (_b = (_a2 = /(?:^|;)\s*color\s*:\s*([^;]+)/i.exec(style)) == null ? void 0 : _a2[1]) == null ? void 0 : _b.trim();
+        const size = (_d = (_c = /(?:^|;)\s*font-size\s*:\s*([0-9.]+)(?:px)?/i.exec(style)) == null ? void 0 : _c[1]) == null ? void 0 : _d.trim();
+        const family = (_f = (_e = /(?:^|;)\s*font-family\s*:\s*([^;]+)/i.exec(style)) == null ? void 0 : _e[1]) == null ? void 0 : _f.trim();
+        let value = content;
+        if (family) value = `[font=${family.replace(/^["']|["']$/g, "")}]${value}[/font]`;
+        if (size) value = `[size=${size}]${value}[/size]`;
+        if (color) value = `[color=${color}]${value}[/color]`;
+        return value;
+      });
+    } while (result !== prev);
+    return result.replace(/<div\s+align=(["']?)(left|center|right)\1\s*>([\s\S]*?)<\/div>/gi, "[$2]$3[/$2]").replace(/<spoiler>([\s\S]*?)<\/spoiler>/gi, "[mask]$1[/mask]").replace(/<mask>([\s\S]*?)<\/mask>/gi, "[mask]$1[/mask]").replace(/<u>([\s\S]*?)<\/u>/gi, "[u]$1[/u]");
   }
   markdown.renderer.rules.text = (tokens, index) => tokens[index].content;
   markdown.renderer.rules.code_inline = (tokens, index) => `[size=12][color=#666]${tokens[index].content}[/color][/size]`;
@@ -5636,7 +5646,7 @@
     return value.replace(/^\n+|\n+$/g, "");
   }
   function escapeHtmlAttribute(value) {
-    return String(value).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return String(value).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
   function stripWrappingQuotes(value) {
     return String(value).trim().replace(/^(['"])([\s\S]*)\1$/, "$2");
@@ -5854,13 +5864,21 @@ ${content}
         return renderCodeBlock(value, node.attr);
       case "mask":
         return `<mask>${value}</mask>`;
+      case "li":
+        return `- ${value.trim()}`;
       default:
         return serializeBBCodeNode(node);
     }
   }
   function bbcodeToMarkdown(source) {
     if (!source) return "";
-    return normalizeMarkdown(renderBBCodeNodeAsMarkdown(parseBBCode(String(source))));
+    const protectedLinks = [];
+    const protectedSource = String(source).replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match2) => {
+      protectedLinks.push(match2);
+      return `\0LINK${protectedLinks.length - 1}\0`;
+    });
+    const converted = normalizeMarkdown(renderBBCodeNodeAsMarkdown(parseBBCode(protectedSource)));
+    return converted.replace(/\x00LINK(\d+)\x00/g, (_m, index) => protectedLinks[Number(index)]);
   }
   function markdownToBBCode(source) {
     if (!source) return "";
@@ -6044,9 +6062,11 @@ ${content}
         event.preventDefault();
         event.stopPropagation();
         if (button.classList.contains(`${SCRIPT_CLASS}Loading`)) return;
+        const currentEditor = chatWindow.querySelector(".chat-textarea.chat-rich-editor");
+        if (!currentEditor) return;
         button.classList.add(`${SCRIPT_CLASS}Loading`);
         try {
-          await convertContentEditable(editor, direction, true);
+          await convertContentEditable(currentEditor, direction, true);
         } catch (error2) {
           console.error("[md2bbcode] failed to convert chat text", error2);
         } finally {
@@ -6111,6 +6131,7 @@ ${content}
     addConversionButtons(toolbar, textarea);
   }
   function enhancePlainTextarea(textarea) {
+    if (!textarea.isConnected) return;
     if (textarea.dataset.md2bbcodeEnhanced === "true") return;
     if (textarea.closest(".markItUp")) return;
     if (!isEditorTextarea(textarea)) return;
@@ -6246,6 +6267,7 @@ ${content}
     if (textarea.dataset.md2bbcodeEnhanced === "true" || textarea.closest(".markItUp")) return;
     if (isEditorTextarea(textarea)) {
       setTimeout(() => {
+        if (!textarea.isConnected) return;
         if (!textarea.closest(".markItUp") && textarea.dataset.md2bbcodeEnhanced !== "true") {
           enhancePlainTextarea(textarea);
         }

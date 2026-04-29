@@ -199,9 +199,14 @@ function addChatConversionButtons(editor) {
       event.stopPropagation();
       if (button.classList.contains(`${SCRIPT_CLASS}Loading`)) return;
 
+      // Dynamically resolve the current editor to avoid stale references
+      // when the chat window DOM is recreated.
+      const currentEditor = chatWindow.querySelector('.chat-textarea.chat-rich-editor');
+      if (!currentEditor) return;
+
       button.classList.add(`${SCRIPT_CLASS}Loading`);
       try {
-        await convertContentEditable(editor, direction, true);
+        await convertContentEditable(currentEditor, direction, true);
       } catch (error) {
         console.error('[md2bbcode] failed to convert chat text', error);
       } finally {
@@ -301,6 +306,7 @@ function enhanceMarkItUpHeader(header) {
  * 仅在确认该 textarea 确实需要工具栏、且不会被 Bangumi 动态初始化 markItUp 时使用。
  */
 function enhancePlainTextarea(textarea) {
+  if (!textarea.isConnected) return;
   if (textarea.dataset.md2bbcodeEnhanced === 'true') return;
   if (textarea.closest('.markItUp')) return;
   if (!isEditorTextarea(textarea)) return;
@@ -464,6 +470,7 @@ document.addEventListener('focusin', event => {
   if (isEditorTextarea(textarea)) {
     // 给 Bangumi 的 markItUp 初始化留出时间窗口
     setTimeout(() => {
+      if (!textarea.isConnected) return;
       if (!textarea.closest('.markItUp') && textarea.dataset.md2bbcodeEnhanced !== 'true') {
         enhancePlainTextarea(textarea);
       }

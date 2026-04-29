@@ -57,7 +57,7 @@ const markdownCoreStart = greasyForkCore.indexOf('function markdownToBBCode');
 const bbcodeCore = greasyForkCore.slice(bbcodeCoreStart, markdownCoreStart);
 const bgmMarkdownCore = [
   greasyForkCore.slice(0, bbcodeCoreStart),
-  greasyForkCore.slice(markdownCoreStart).replace('const md2bbcode = {\n  markdownToBBCode,\n  bbcodeToMarkdown\n};', '')
+  greasyForkCore.slice(markdownCoreStart).replace('const md2bbcode = {\n  markdownToBBCode,\n  bbcodeToMarkdown,\n  markdownToBBCodeChat,\n  bbcodeToMarkdownChat\n};', '')
 ].join('\n');
 
 await writeFile('dist/md2bbcode.greasyfork.user.js', `${greasyForkHeader}

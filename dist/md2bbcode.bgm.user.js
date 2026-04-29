@@ -71,7 +71,7 @@
       }
       
       function isSafeLink(url) {
-        return !unsafeProtocol.test(url);
+        return !unsafeProtocol.test(url) || safeImageDataProtocol.test(url);
       }
       
       function isSafeImage(url) {
@@ -92,16 +92,26 @@
       }
       
       function preprocessMarkdown(source) {
-        return String(source)
-          .replace(/<!--[\s\S]*?-->/g, '')
-          .replace(/<details>\s*(?:<summary>([\s\S]*?)<\/summary>)?\s*([\s\S]*?)<\/details>/gi, (_match, summary = '', body = '') => {
+        let result = String(source)
+          .replace(/<!--[\s\S]*?-->/g, '');
+      
+        // Process nested <details> from innermost to outermost
+        let prev;
+        do {
+          prev = result;
+          result = result.replace(/<details>\s*(?:<summary>([\s\S]*?)<\/summary>)?\s*([\s\S]*?)<\/details>/i, (_match, summary = '', body = '') => {
             const title = summary.trim();
             const content = compactDetailsBody(body);
             return title
               ? `\n[color=yellowgreen]${title}[/color] [mask]${content}[/mask]\n`
               : `\n[mask]${content}[/mask]\n`;
-          })
-          .replace(/<span\s+style=(["'])([^"']*?)\1\s*>([\s\S]*?)<\/span>/gi, (_match, _quote, style, content) => {
+          });
+        } while (result !== prev);
+      
+        // Process nested <span style=...> from innermost to outermost
+        do {
+          prev = result;
+          result = result.replace(/<span\s+style=(["'])([^"']*?)\1\s*>([\s\S]*?)<\/span>/i, (_match, _quote, style, content) => {
             const color = /(?:^|;)\s*color\s*:\s*([^;]+)/i.exec(style)?.[1]?.trim();
             const size = /(?:^|;)\s*font-size\s*:\s*([0-9.]+)(?:px)?/i.exec(style)?.[1]?.trim();
             const family = /(?:^|;)\s*font-family\s*:\s*([^;]+)/i.exec(style)?.[1]?.trim();
@@ -111,7 +121,10 @@
             if (size) value = `[size=${size}]${value}[/size]`;
             if (color) value = `[color=${color}]${value}[/color]`;
             return value;
-          })
+          });
+        } while (result !== prev);
+      
+        return result
           .replace(/<div\s+align=(["']?)(left|center|right)\1\s*>([\s\S]*?)<\/div>/gi, '[$2]$3[/$2]')
           .replace(/<spoiler>([\s\S]*?)<\/spoiler>/gi, '[mask]$1[/mask]')
           .replace(/<mask>([\s\S]*?)<\/mask>/gi, '[mask]$1[/mask]')
@@ -218,12 +231,7 @@
         return normalizeBBCode(chatMarkdown.render(preprocessMarkdown(source)));
       }
       
-      const md2bbcode = {
-        markdownToBBCode,
-        bbcodeToMarkdown,
-        markdownToBBCodeChat,
-        bbcodeToMarkdownChat
-      };
+      
       
 
       return markdownToBBCode;
@@ -358,6 +366,7 @@
       return String(value)
         .replace(/&/g, '&amp;')
         .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
     }
@@ -622,6 +631,8 @@
           return renderCodeBlock(value, node.attr);
         case 'mask':
           return `<mask>${value}</mask>`;
+        case 'li':
+          return `- ${value.trim()}`;
         default:
           return serializeBBCodeNode(node);
       }
@@ -629,7 +640,15 @@
     
     function bbcodeToMarkdown(source) {
       if (!source) return '';
-      return normalizeMarkdown(renderBBCodeNodeAsMarkdown(parseBBCode(String(source))));
+      // Protect Markdown link syntax [text](url) so the BBCode parser doesn't
+      // misidentify [text] as a BBCode tag.
+      const protectedLinks = [];
+      const protectedSource = String(source).replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match) => {
+        protectedLinks.push(match);
+        return `\x00LINK${protectedLinks.length - 1}\x00`;
+      });
+      const converted = normalizeMarkdown(renderBBCodeNodeAsMarkdown(parseBBCode(protectedSource)));
+      return converted.replace(/\x00LINK(\d+)\x00/g, (_m, index) => protectedLinks[Number(index)]);
     }
     
     
@@ -833,9 +852,14 @@
           event.stopPropagation();
           if (button.classList.contains(`${SCRIPT_CLASS}Loading`)) return;
     
+          // Dynamically resolve the current editor to avoid stale references
+          // when the chat window DOM is recreated.
+          const currentEditor = chatWindow.querySelector('.chat-textarea.chat-rich-editor');
+          if (!currentEditor) return;
+    
           button.classList.add(`${SCRIPT_CLASS}Loading`);
           try {
-            await convertContentEditable(editor, direction, true);
+            await convertContentEditable(currentEditor, direction, true);
           } catch (error) {
             console.error('[md2bbcode] failed to convert chat text', error);
           } finally {
@@ -935,6 +959,7 @@
      * 仅在确认该 textarea 确实需要工具栏、且不会被 Bangumi 动态初始化 markItUp 时使用。
      */
     function enhancePlainTextarea(textarea) {
+      if (!textarea.isConnected) return;
       if (textarea.dataset.md2bbcodeEnhanced === 'true') return;
       if (textarea.closest('.markItUp')) return;
       if (!isEditorTextarea(textarea)) return;
@@ -1098,6 +1123,7 @@
       if (isEditorTextarea(textarea)) {
         // 给 Bangumi 的 markItUp 初始化留出时间窗口
         setTimeout(() => {
+          if (!textarea.isConnected) return;
           if (!textarea.closest('.markItUp') && textarea.dataset.md2bbcodeEnhanced !== 'true') {
             enhancePlainTextarea(textarea);
           }
