@@ -5449,35 +5449,68 @@
   function compactDetailsBody(value) {
     return value.replace(/[\t\r\f\v]+/g, " ").replace(/\n+/g, " ").replace(/ {2,}/g, "\n").trim();
   }
+  function replaceInnermostTag(source, openTag, closeTag, processor) {
+    let result = source;
+    while (true) {
+      let closeIndex = result.indexOf(closeTag);
+      if (closeIndex === -1) break;
+      let openIndex = -1;
+      let depth = 0;
+      for (let i = closeIndex - 1; i >= 0; i -= 1) {
+        if (result.startsWith(closeTag, i)) {
+          depth += 1;
+        } else if (result.startsWith(openTag, i)) {
+          if (depth === 0) {
+            openIndex = i;
+            break;
+          }
+          depth -= 1;
+        }
+      }
+      if (openIndex === -1) break;
+      const fullMatch = result.slice(openIndex, closeIndex + closeTag.length);
+      const replacement = processor(fullMatch, openIndex);
+      if (replacement === fullMatch) break;
+      result = result.slice(0, openIndex) + replacement + result.slice(closeIndex + closeTag.length);
+    }
+    return result;
+  }
   function preprocessMarkdown(source) {
     let result = String(source).replace(/<!--[\s\S]*?-->/g, "");
-    let prev;
-    do {
-      prev = result;
-      result = result.replace(/<details>\s*(?:<summary>([\s\S]*?)<\/summary>)?\s*([\s\S]*?)<\/details>/i, (_match, summary = "", body = "") => {
-        const title = summary.trim();
-        const content = compactDetailsBody(body);
+    result = replaceInnermostTag(result, "<details", "</details>", (fullMatch) => {
+      const summaryMatch = fullMatch.match(/<details>\s*<summary>([\s\S]*?)<\/summary>\s*([\s\S]*)<\/details>/i);
+      if (summaryMatch) {
+        const title = summaryMatch[1].trim();
+        const content = compactDetailsBody(summaryMatch[2]);
         return title ? `
 [color=yellowgreen]${title}[/color] [mask]${content}[/mask]
 ` : `
 [mask]${content}[/mask]
 `;
-      });
-    } while (result !== prev);
-    do {
-      prev = result;
-      result = result.replace(/<span\s+style=(["'])([^"']*?)\1\s*>([\s\S]*?)<\/span>/i, (_match, _quote, style, content) => {
-        var _a2, _b, _c, _d, _e, _f;
-        const color = (_b = (_a2 = /(?:^|;)\s*color\s*:\s*([^;]+)/i.exec(style)) == null ? void 0 : _a2[1]) == null ? void 0 : _b.trim();
-        const size = (_d = (_c = /(?:^|;)\s*font-size\s*:\s*([0-9.]+)(?:px)?/i.exec(style)) == null ? void 0 : _c[1]) == null ? void 0 : _d.trim();
-        const family = (_f = (_e = /(?:^|;)\s*font-family\s*:\s*([^;]+)/i.exec(style)) == null ? void 0 : _e[1]) == null ? void 0 : _f.trim();
-        let value = content;
-        if (family) value = `[font=${family.replace(/^["']|["']$/g, "")}]${value}[/font]`;
-        if (size) value = `[size=${size}]${value}[/size]`;
-        if (color) value = `[color=${color}]${value}[/color]`;
-        return value;
-      });
-    } while (result !== prev);
+      }
+      const noSummaryMatch = fullMatch.match(/<details>\s*([\s\S]*?)<\/details>/i);
+      if (noSummaryMatch) {
+        return `
+[mask]${compactDetailsBody(noSummaryMatch[1])}[/mask]
+`;
+      }
+      return fullMatch;
+    });
+    result = replaceInnermostTag(result, "<span", "</span>", (fullMatch) => {
+      var _a2, _b, _c, _d, _e, _f;
+      const openMatch = fullMatch.match(/^<span\s+style=(["'])([^"']*?)\1\s*>([\s\S]*)<\/span>$/i);
+      if (!openMatch) return fullMatch;
+      const style = openMatch[2];
+      const content = openMatch[3];
+      const color = (_b = (_a2 = /(?:^|;)\s*color\s*:\s*([^;]+)/i.exec(style)) == null ? void 0 : _a2[1]) == null ? void 0 : _b.trim();
+      const size = (_d = (_c = /(?:^|;)\s*font-size\s*:\s*([0-9.]+)(?:px)?/i.exec(style)) == null ? void 0 : _c[1]) == null ? void 0 : _d.trim();
+      const family = (_f = (_e = /(?:^|;)\s*font-family\s*:\s*([^;]+)/i.exec(style)) == null ? void 0 : _e[1]) == null ? void 0 : _f.trim();
+      let value = content;
+      if (family) value = `[font=${family.replace(/^["']|["']$/g, "")}]${value}[/font]`;
+      if (size) value = `[size=${size}]${value}[/size]`;
+      if (color) value = `[color=${color}]${value}[/color]`;
+      return value;
+    });
     return result.replace(/<div\s+align=(["']?)(left|center|right)\1\s*>([\s\S]*?)<\/div>/gi, "[$2]$3[/$2]").replace(/<spoiler>([\s\S]*?)<\/spoiler>/gi, "[mask]$1[/mask]").replace(/<mask>([\s\S]*?)<\/mask>/gi, "[mask]$1[/mask]").replace(/<u>([\s\S]*?)<\/u>/gi, "[u]$1[/u]");
   }
   markdown.renderer.rules.text = (tokens, index) => tokens[index].content;
