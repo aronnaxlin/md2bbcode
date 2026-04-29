@@ -3,7 +3,7 @@
 // @namespace    bangumi.md2bbcode
 // @version      0.0.3
 // @description  为 Bangumi 编辑器添加 Markdown 转 BBCode
-// @author       you
+// @author       aronnax
 // @icon         https://bgm.tv/img/favicon.ico
 // @match        *://bgm.tv/*
 // @match        *://chii.in/*
@@ -528,7 +528,7 @@ function normalizeMarkdown(value) {
 // ===== Chat (Re:Dollars) limited converter =====
 // Re:Dollars only supports: [b], [i], [u], [s], [code], [url], [mask]
 
-const chatMarkdown = new MarkdownIt({
+const chatMarkdown = window.markdownit({
   html: false,
   linkify: false,
   breaks: false,
@@ -556,7 +556,11 @@ chatMarkdown.renderer.rules.list_item_close = () => '\n';
 chatMarkdown.renderer.rules.hr = () => '';
 chatMarkdown.renderer.rules.html_block = () => '';
 chatMarkdown.renderer.rules.html_inline = () => '';
-chatMarkdown.renderer.rules.image = () => '';
+chatMarkdown.renderer.rules.image = (tokens, index) => {
+  const src = attr(tokens[index], 'src');
+  const destination = formatMarkdownDestination(src);
+  return destination ? `![${escapeMarkdownLinkLabel(tokens[index].content || '')}](${destination})` : '';
+};
 chatMarkdown.renderer.rules.table_open = () => '';
 chatMarkdown.renderer.rules.table_close = () => '';
 chatMarkdown.renderer.rules.thead_open = () => '';
@@ -639,21 +643,88 @@ const md2bbcode = {
 
 const SCRIPT_CLASS = 'md2bbcode';
 const STORAGE_KEY = 'md2bbcode_settings';
+const COOKIE_KEYS = {
+  chatButtons: 'md2bbcode_chat',
+  toolbarButtons: 'md2bbcode_toolbar'
+};
+
+function getLocalStorage() {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function getCookie(name) {
+  try {
+    if (window.$ && typeof window.$.cookie === 'function') {
+      return window.$.cookie(name);
+    }
+  } catch {
+    // Fall through to document.cookie.
+  }
+
+  try {
+    const prefix = `${encodeURIComponent(name)}=`;
+    const item = document.cookie.split('; ').find(cookie => cookie.startsWith(prefix));
+    return item ? decodeURIComponent(item.slice(prefix.length)) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function setCookie(name, value) {
+  try {
+    if (window.$ && typeof window.$.cookie === 'function') {
+      window.$.cookie(name, value, { expires: 365, path: '/' });
+      return;
+    }
+  } catch {
+    // Fall through to document.cookie.
+  }
+
+  try {
+    document.cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}; max-age=31536000; path=/`;
+  } catch {
+    // Ignore unavailable cookie storage.
+  }
+}
 
 function loadSettings() {
+  const storage = getLocalStorage();
+  if (!storage) return {};
+
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    return JSON.parse(storage.getItem(STORAGE_KEY)) || {};
   } catch {
     return {};
   }
 }
 
 function saveSettings(settings) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  const storage = getLocalStorage();
+  if (!storage) return;
+
+  try {
+    storage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    // Ignore unavailable localStorage in component sandboxes.
+  }
 }
 
 function getSetting(key, defaultValue) {
+  const cookieValue = getCookie(COOKIE_KEYS[key] || key);
+  if (cookieValue != null && cookieValue !== '') return cookieValue;
   return loadSettings()[key] ?? defaultValue;
+}
+
+function setSetting(key, value) {
+  setCookie(COOKIE_KEYS[key] || key, value);
+
+  const settings = loadSettings();
+  settings[key] = value;
+  saveSettings(settings);
 }
 
 const markdownIcon = `
@@ -1084,47 +1155,57 @@ function injectStyle() {
 }
 
 function registerConfigPanel() {
-  if (typeof chiiLib === 'undefined' || !chiiLib.ukagaka) return;
+  const ukagaka = window.chiiLib?.ukagaka;
+  if (!ukagaka?.addPanelTab) return false;
 
-  chiiLib.ukagaka.addGeneralConfig({
-    title: 'Re:Dollars 聊天按钮',
-    name: 'md2bbcode_chat',
-    type: 'radio',
-    defaultValue: 'both',
-    getCurrentValue: () => getSetting('chatButtons', 'both'),
-    onChange: (value) => {
-      const settings = loadSettings();
-      settings.chatButtons = value;
-      saveSettings(settings);
-    },
-    options: [
-      { value: 'both', label: '显示两个按钮' },
-      { value: 'markdown-only', label: '只显示 Markdown→BBCode' },
-      { value: 'none', label: '不显示' }
+  ukagaka.removePanelTab?.('md2bbcode');
+
+  ukagaka.addPanelTab({
+    tab: 'md2bbcode',
+    label: 'MD2BBCode',
+    type: 'options',
+    config: [
+      {
+        title: 'Re:Dollars 聊天按钮',
+        name: 'md2bbcode_chat',
+        type: 'radio',
+        defaultValue: 'both',
+        getCurrentValue: () => getSetting('chatButtons', 'both'),
+        onChange: value => setSetting('chatButtons', value),
+        options: [
+          { value: 'both', label: '显示两个按钮' },
+          { value: 'markdown-only', label: '只显示 Markdown→BBCode' },
+          { value: 'none', label: '不显示' }
+        ]
+      },
+      {
+        title: '编辑器工具栏按钮',
+        name: 'md2bbcode_toolbar',
+        type: 'radio',
+        defaultValue: 'both',
+        getCurrentValue: () => getSetting('toolbarButtons', 'both'),
+        onChange: value => setSetting('toolbarButtons', value),
+        options: [
+          { value: 'both', label: '显示两个按钮' },
+          { value: 'markdown-only', label: '只显示 Markdown→BBCode' },
+          { value: 'none', label: '不显示' }
+        ]
+      }
     ]
   });
 
-  chiiLib.ukagaka.addGeneralConfig({
-    title: '编辑器工具栏按钮',
-    name: 'md2bbcode_toolbar',
-    type: 'radio',
-    defaultValue: 'both',
-    getCurrentValue: () => getSetting('toolbarButtons', 'both'),
-    onChange: (value) => {
-      const settings = loadSettings();
-      settings.toolbarButtons = value;
-      saveSettings(settings);
-    },
-    options: [
-      { value: 'both', label: '显示两个按钮' },
-      { value: 'markdown-only', label: '只显示 Markdown→BBCode' },
-      { value: 'none', label: '不显示' }
-    ]
-  });
+  return true;
+}
+
+function registerConfigPanelWhenReady(retries = 20) {
+  if (registerConfigPanel()) return;
+  if (retries <= 0) return;
+
+  setTimeout(() => registerConfigPanelWhenReady(retries - 1), 500);
 }
 
 injectStyle();
-registerConfigPanel();
+registerConfigPanelWhenReady();
 enhanceAllEditors();
 
 // ===== MutationObserver：监听 markItUp 的动态生成 =====

@@ -6,7 +6,7 @@ const commonHeader = `// ==UserScript==
 // @namespace    bangumi.md2bbcode
 // @version      0.0.3
 // @description  为 Bangumi 编辑器添加 Markdown 转 BBCode
-// @author       you
+// @author       aronnax
 // @icon         https://bgm.tv/img/favicon.ico
 // @match        *://bgm.tv/*
 // @match        *://chii.in/*
@@ -43,22 +43,15 @@ const core = await readFile('src/core/markdown-to-bbcode.js', 'utf8');
 const app = await readFile('src/userscript/app.js', 'utf8');
 
 const greasyForkCore = core
-  .replace("import MarkdownIt from 'markdown-it';\n\n", '')
-  .replace('const markdown = new MarkdownIt({', 'const markdown = window.markdownit({')
+  .replace(/^import MarkdownIt from 'markdown-it';\r?\n\r?\n/, '')
+  .replace(/\bnew MarkdownIt\(/g, 'window.markdownit(')
   .replace('export function markdownToBBCode(source) {', 'function markdownToBBCode(source) {')
   .replace('export function bbcodeToMarkdown(source) {', 'function bbcodeToMarkdown(source) {')
   .replace('export function markdownToBBCodeChat(source) {', 'function markdownToBBCodeChat(source) {')
   .replace('export function bbcodeToMarkdownChat(source) {', 'function bbcodeToMarkdownChat(source) {')
-  .replace('export const md2bbcode = {\n  markdownToBBCode,\n  bbcodeToMarkdown,\n  markdownToBBCodeChat,\n  bbcodeToMarkdownChat\n};', 'const md2bbcode = {\n  markdownToBBCode,\n  bbcodeToMarkdown,\n  markdownToBBCodeChat,\n  bbcodeToMarkdownChat\n};');
+  .replace(/export const md2bbcode = \{\r?\n  markdownToBBCode,\r?\n  bbcodeToMarkdown,\r?\n  markdownToBBCodeChat,\r?\n  bbcodeToMarkdownChat\r?\n\};/, 'const md2bbcode = {\n  markdownToBBCode,\n  bbcodeToMarkdown,\n  markdownToBBCodeChat,\n  bbcodeToMarkdownChat\n};');
 
-const greasyForkApp = app.replace("import { md2bbcode } from '../core/markdown-to-bbcode.js';\n\n", '');
-const bbcodeCoreStart = greasyForkCore.indexOf('const bbcodeTagPattern');
-const markdownCoreStart = greasyForkCore.indexOf('function markdownToBBCode');
-const bbcodeCore = greasyForkCore.slice(bbcodeCoreStart, markdownCoreStart);
-const bgmMarkdownCore = [
-  greasyForkCore.slice(0, bbcodeCoreStart),
-  greasyForkCore.slice(markdownCoreStart).replace('const md2bbcode = {\n  markdownToBBCode,\n  bbcodeToMarkdown,\n  markdownToBBCodeChat,\n  bbcodeToMarkdownChat\n};', '')
-].join('\n');
+const greasyForkApp = app.replace(/^import \{ md2bbcode \} from '\.\.\/core\/markdown-to-bbcode\.js';\r?\n\r?\n/, '');
 
 await writeFile('dist/md2bbcode.greasyfork.user.js', `${greasyForkHeader}
 (function () {
@@ -83,7 +76,6 @@ await writeFile('dist/md2bbcode.bgm.user.js', `${bgmHeader}
 
   const markdownItUrl = '${markdownItUrl}';
   let markdownItLoadPromise;
-  let markdownToBBCodePromise;
 
   function loadScript(src) {
     if (window.markdownit) return Promise.resolve();
@@ -114,35 +106,12 @@ await writeFile('dist/md2bbcode.bgm.user.js', `${bgmHeader}
     return markdownItLoadPromise;
   }
 
-  function ensureMarkdownToBBCode() {
-    if (markdownToBBCodePromise) return markdownToBBCodePromise;
-
-    markdownToBBCodePromise = loadScript(markdownItUrl).then(() => {
-${bgmMarkdownCore.split('\n').map(line => `      ${line}`).join('\n')}
-
-      return markdownToBBCode;
-    });
-
-    return markdownToBBCodePromise;
-  }
-
-  const md2bbcode = {
-    markdownToBBCode(source) {
-      return ensureMarkdownToBBCode().then(markdownToBBCode => markdownToBBCode(source));
-    },
-    bbcodeToMarkdown(source) {
-      return bbcodeToMarkdown(source);
-    },
-    markdownToBBCodeChat(source) {
-      return ensureMarkdownToBBCode().then(() => markdownToBBCodeChat(source));
-    },
-    bbcodeToMarkdownChat(source) {
-      return bbcodeToMarkdownChat(source);
-    }
-  };
-
-${bbcodeCore.split('\n').map(line => `    ${line}`).join('\n')}
+  loadScript(markdownItUrl).then(() => {
+${greasyForkCore.split('\n').map(line => `    ${line}`).join('\n')}
 
 ${greasyForkApp.split('\n').map(line => `    ${line}`).join('\n')}
+  }).catch(error => {
+    console.error('[md2bbcode] failed to initialize', error);
+  });
 })();
 `);

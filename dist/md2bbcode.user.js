@@ -3,7 +3,7 @@
 // @namespace    bangumi.md2bbcode
 // @version      0.0.3
 // @description  为 Bangumi 编辑器添加 Markdown 转 BBCode
-// @author       you
+// @author       aronnax
 // @icon         https://bgm.tv/img/favicon.ico
 // @match        *://bgm.tv/*
 // @match        *://chii.in/*
@@ -5864,7 +5864,11 @@ ${content}
   chatMarkdown.renderer.rules.hr = () => "";
   chatMarkdown.renderer.rules.html_block = () => "";
   chatMarkdown.renderer.rules.html_inline = () => "";
-  chatMarkdown.renderer.rules.image = () => "";
+  chatMarkdown.renderer.rules.image = (tokens, index) => {
+    const src = attr(tokens[index], "src");
+    const destination = formatMarkdownDestination(src);
+    return destination ? `![${escapeMarkdownLinkLabel(tokens[index].content || "")}](${destination})` : "";
+  };
   chatMarkdown.renderer.rules.table_open = () => "";
   chatMarkdown.renderer.rules.table_close = () => "";
   chatMarkdown.renderer.rules.thead_open = () => "";
@@ -5935,19 +5939,73 @@ ${content}
   // src/userscript/app.js
   var SCRIPT_CLASS = "md2bbcode";
   var STORAGE_KEY = "md2bbcode_settings";
-  function loadSettings() {
+  var COOKIE_KEYS = {
+    chatButtons: "md2bbcode_chat",
+    toolbarButtons: "md2bbcode_toolbar"
+  };
+  function getLocalStorage() {
     try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+      return window.localStorage;
+    } catch (e) {
+      return null;
+    }
+  }
+  function getCookie(name) {
+    try {
+      if (window.$ && typeof window.$.cookie === "function") {
+        return window.$.cookie(name);
+      }
+    } catch (e) {
+    }
+    try {
+      const prefix = `${encodeURIComponent(name)}=`;
+      const item = document.cookie.split("; ").find((cookie) => cookie.startsWith(prefix));
+      return item ? decodeURIComponent(item.slice(prefix.length)) : void 0;
+    } catch (e) {
+      return void 0;
+    }
+  }
+  function setCookie(name, value) {
+    try {
+      if (window.$ && typeof window.$.cookie === "function") {
+        window.$.cookie(name, value, { expires: 365, path: "/" });
+        return;
+      }
+    } catch (e) {
+    }
+    try {
+      document.cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}; max-age=31536000; path=/`;
+    } catch (e) {
+    }
+  }
+  function loadSettings() {
+    const storage = getLocalStorage();
+    if (!storage) return {};
+    try {
+      return JSON.parse(storage.getItem(STORAGE_KEY)) || {};
     } catch (e) {
       return {};
     }
   }
   function saveSettings(settings) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    const storage = getLocalStorage();
+    if (!storage) return;
+    try {
+      storage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    } catch (e) {
+    }
   }
   function getSetting(key, defaultValue) {
     var _a2;
+    const cookieValue = getCookie(COOKIE_KEYS[key] || key);
+    if (cookieValue != null && cookieValue !== "") return cookieValue;
     return (_a2 = loadSettings()[key]) != null ? _a2 : defaultValue;
+  }
+  function setSetting(key, value) {
+    setCookie(COOKIE_KEYS[key] || key, value);
+    const settings = loadSettings();
+    settings[key] = value;
+    saveSettings(settings);
   }
   var markdownIcon = `
   <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
@@ -6291,44 +6349,52 @@ ${content}
     document.head.append(style);
   }
   function registerConfigPanel() {
-    if (typeof chiiLib === "undefined" || !chiiLib.ukagaka) return;
-    chiiLib.ukagaka.addGeneralConfig({
-      title: "Re:Dollars \u804A\u5929\u6309\u94AE",
-      name: "md2bbcode_chat",
-      type: "radio",
-      defaultValue: "both",
-      getCurrentValue: () => getSetting("chatButtons", "both"),
-      onChange: (value) => {
-        const settings = loadSettings();
-        settings.chatButtons = value;
-        saveSettings(settings);
-      },
-      options: [
-        { value: "both", label: "\u663E\u793A\u4E24\u4E2A\u6309\u94AE" },
-        { value: "markdown-only", label: "\u53EA\u663E\u793A Markdown\u2192BBCode" },
-        { value: "none", label: "\u4E0D\u663E\u793A" }
+    var _a2, _b;
+    const ukagaka = (_a2 = window.chiiLib) == null ? void 0 : _a2.ukagaka;
+    if (!(ukagaka == null ? void 0 : ukagaka.addPanelTab)) return false;
+    (_b = ukagaka.removePanelTab) == null ? void 0 : _b.call(ukagaka, "md2bbcode");
+    ukagaka.addPanelTab({
+      tab: "md2bbcode",
+      label: "MD2BBCode",
+      type: "options",
+      config: [
+        {
+          title: "Re:Dollars \u804A\u5929\u6309\u94AE",
+          name: "md2bbcode_chat",
+          type: "radio",
+          defaultValue: "both",
+          getCurrentValue: () => getSetting("chatButtons", "both"),
+          onChange: (value) => setSetting("chatButtons", value),
+          options: [
+            { value: "both", label: "\u663E\u793A\u4E24\u4E2A\u6309\u94AE" },
+            { value: "markdown-only", label: "\u53EA\u663E\u793A Markdown\u2192BBCode" },
+            { value: "none", label: "\u4E0D\u663E\u793A" }
+          ]
+        },
+        {
+          title: "\u7F16\u8F91\u5668\u5DE5\u5177\u680F\u6309\u94AE",
+          name: "md2bbcode_toolbar",
+          type: "radio",
+          defaultValue: "both",
+          getCurrentValue: () => getSetting("toolbarButtons", "both"),
+          onChange: (value) => setSetting("toolbarButtons", value),
+          options: [
+            { value: "both", label: "\u663E\u793A\u4E24\u4E2A\u6309\u94AE" },
+            { value: "markdown-only", label: "\u53EA\u663E\u793A Markdown\u2192BBCode" },
+            { value: "none", label: "\u4E0D\u663E\u793A" }
+          ]
+        }
       ]
     });
-    chiiLib.ukagaka.addGeneralConfig({
-      title: "\u7F16\u8F91\u5668\u5DE5\u5177\u680F\u6309\u94AE",
-      name: "md2bbcode_toolbar",
-      type: "radio",
-      defaultValue: "both",
-      getCurrentValue: () => getSetting("toolbarButtons", "both"),
-      onChange: (value) => {
-        const settings = loadSettings();
-        settings.toolbarButtons = value;
-        saveSettings(settings);
-      },
-      options: [
-        { value: "both", label: "\u663E\u793A\u4E24\u4E2A\u6309\u94AE" },
-        { value: "markdown-only", label: "\u53EA\u663E\u793A Markdown\u2192BBCode" },
-        { value: "none", label: "\u4E0D\u663E\u793A" }
-      ]
-    });
+    return true;
+  }
+  function registerConfigPanelWhenReady(retries = 20) {
+    if (registerConfigPanel()) return;
+    if (retries <= 0) return;
+    setTimeout(() => registerConfigPanelWhenReady(retries - 1), 500);
   }
   injectStyle();
-  registerConfigPanel();
+  registerConfigPanelWhenReady();
   enhanceAllEditors();
   var observer = new MutationObserver((mutations) => {
     var _a2, _b, _c, _d;

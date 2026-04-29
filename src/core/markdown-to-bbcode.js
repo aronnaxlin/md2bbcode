@@ -538,7 +538,11 @@ chatMarkdown.renderer.rules.list_item_close = () => '\n';
 chatMarkdown.renderer.rules.hr = () => '';
 chatMarkdown.renderer.rules.html_block = () => '';
 chatMarkdown.renderer.rules.html_inline = () => '';
-chatMarkdown.renderer.rules.image = () => '';
+chatMarkdown.renderer.rules.image = (tokens, index) => {
+  const src = attr(tokens[index], 'src');
+  const destination = formatMarkdownDestination(src);
+  return destination ? `![${escapeMarkdownLinkLabel(tokens[index].content || '')}](${destination})` : '';
+};
 chatMarkdown.renderer.rules.table_open = () => '';
 chatMarkdown.renderer.rules.table_close = () => '';
 chatMarkdown.renderer.rules.thead_open = () => '';

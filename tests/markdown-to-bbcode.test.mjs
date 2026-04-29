@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { bbcodeToMarkdown, markdownToBBCode } from '../src/core/markdown-to-bbcode.js';
+import {
+  bbcodeToMarkdown,
+  bbcodeToMarkdownChat,
+  markdownToBBCode,
+  markdownToBBCodeChat
+} from '../src/core/markdown-to-bbcode.js';
 
 const cases = [
   ['**粗体**', '[b]粗体[/b]'],
@@ -137,8 +142,18 @@ assert.equal(
   '[center]居中[/center]'
 );
 
+assert.equal(
+  markdownToBBCodeChat('**粗体** [链接](https://bangumi.tv) ![图](https://example.com/a.png)'),
+  '[b]粗体[/b] [url=https://bangumi.tv]链接[/url] ![图](https://example.com/a.png)'
+);
+
+assert.equal(
+  bbcodeToMarkdownChat('[b]粗体[/b] [img]https://example.com/a.png[/img]'),
+  '**粗体** [img]https://example.com/a.png[/img]'
+);
+
 const sampleBBCode = readFileSync(new URL('./fixtures/bangumi-bbcode-sample.txt', import.meta.url), 'utf8');
 const sampleMarkdown = readFileSync(new URL('./fixtures/bangumi-bbcode-sample.expected.md', import.meta.url), 'utf8');
 assert.equal(bbcodeToMarkdown(sampleBBCode), sampleMarkdown.trim());
 
-console.log(`ok ${cases.length + reverseCases.length + 23} markdown/bbcode conversion cases`);
+console.log(`ok ${cases.length + reverseCases.length + 25} markdown/bbcode conversion cases`);

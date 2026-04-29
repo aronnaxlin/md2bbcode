@@ -3,7 +3,7 @@
 // @namespace    bangumi.md2bbcode
 // @version      0.0.3
 // @description  为 Bangumi 编辑器添加 Markdown 转 BBCode
-// @author       you
+// @author       aronnax
 // @icon         https://bgm.tv/img/favicon.ico
 // @match        *://bgm.tv/*
 // @match        *://chii.in/*
@@ -18,7 +18,6 @@
 
   const markdownItUrl = 'https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.js';
   let markdownItLoadPromise;
-  let markdownToBBCodePromise;
 
   function loadScript(src) {
     if (window.markdownit) return Promise.resolve();
@@ -49,250 +48,207 @@
     return markdownItLoadPromise;
   }
 
-  function ensureMarkdownToBBCode() {
-    if (markdownToBBCodePromise) return markdownToBBCodePromise;
-
-    markdownToBBCodePromise = loadScript(markdownItUrl).then(() => {
-      const markdown = window.markdownit({
-        html: false,
-        linkify: true,
-        breaks: false,
-        typographer: false
-      });
-      
-      const unsafeProtocol = /^(?:javascript|vbscript|file|data):/i;
-      const safeImageDataProtocol = /^data:image\/(?:png|gif|jpeg|webp);/i;
-      
-      markdown.validateLink = url => !unsafeProtocol.test(url) || safeImageDataProtocol.test(url);
-      
-      function attr(token, name) {
-        const value = token.attrGet(name);
-        return value == null ? '' : value;
-      }
-      
-      function isSafeLink(url) {
-        return !unsafeProtocol.test(url) || safeImageDataProtocol.test(url);
-      }
-      
-      function isSafeImage(url) {
-        return !unsafeProtocol.test(url) || safeImageDataProtocol.test(url);
-      }
-      
-      function headingSize(token) {
-        const level = Number(String(token.tag || 'h1').replace('h', '')) || 1;
-        return Math.max(16, 26 - level * 2);
-      }
-      
-      function compactDetailsBody(value) {
-        return value
-          .replace(/[\t\r\f\v]+/g, ' ')
-          .replace(/\n+/g, ' ')
-          .replace(/ {2,}/g, '\n')
-          .trim();
-      }
-      
-      function replaceInnermostTag(source, openTag, closeTag, processor) {
-        let result = source;
-        while (true) {
-          let closeIndex = result.indexOf(closeTag);
-          if (closeIndex === -1) break;
-      
-          // Find the nearest opening tag before this closing tag
-          let openIndex = -1;
-          let depth = 0;
-          for (let i = closeIndex - 1; i >= 0; i -= 1) {
-            if (result.startsWith(closeTag, i)) {
-              depth += 1;
-            } else if (result.startsWith(openTag, i)) {
-              if (depth === 0) {
-                openIndex = i;
-                break;
-              }
-              depth -= 1;
-            }
-          }
-      
-          if (openIndex === -1) break;
-      
-          const fullMatch = result.slice(openIndex, closeIndex + closeTag.length);
-          const replacement = processor(fullMatch, openIndex);
-          if (replacement === fullMatch) break;
-      
-          result = result.slice(0, openIndex) + replacement + result.slice(closeIndex + closeTag.length);
-        }
-        return result;
-      }
-      
-      function preprocessMarkdown(source) {
-        let result = String(source)
-          .replace(/<!--[\s\S]*?-->/g, '');
-      
-        // Process nested <details> from innermost to outermost
-        result = replaceInnermostTag(result, '<details', '</details>', (fullMatch) => {
-          const summaryMatch = fullMatch.match(/<details>\s*<summary>([\s\S]*?)<\/summary>\s*([\s\S]*)<\/details>/i);
-          if (summaryMatch) {
-            const title = summaryMatch[1].trim();
-            const content = compactDetailsBody(summaryMatch[2]);
-            return title
-              ? `\n[color=yellowgreen]${title}[/color] [mask]${content}[/mask]\n`
-              : `\n[mask]${content}[/mask]\n`;
-          }
-          const noSummaryMatch = fullMatch.match(/<details>\s*([\s\S]*?)<\/details>/i);
-          if (noSummaryMatch) {
-            return `\n[mask]${compactDetailsBody(noSummaryMatch[1])}[/mask]\n`;
-          }
-          return fullMatch;
-        });
-      
-        // Process nested <span style=...> from innermost to outermost
-        result = replaceInnermostTag(result, '<span', '</span>', (fullMatch) => {
-          const openMatch = fullMatch.match(/^<span\s+style=(["'])([^"']*?)\1\s*>([\s\S]*)<\/span>$/i);
-          if (!openMatch) return fullMatch;
-          const style = openMatch[2];
-          const content = openMatch[3];
-      
-          const color = /(?:^|;)\s*color\s*:\s*([^;]+)/i.exec(style)?.[1]?.trim();
-          const size = /(?:^|;)\s*font-size\s*:\s*([0-9.]+)(?:px)?/i.exec(style)?.[1]?.trim();
-          const family = /(?:^|;)\s*font-family\s*:\s*([^;]+)/i.exec(style)?.[1]?.trim();
-      
-          let value = content;
-          if (family) value = `[font=${family.replace(/^["']|["']$/g, '')}]${value}[/font]`;
-          if (size) value = `[size=${size}]${value}[/size]`;
-          if (color) value = `[color=${color}]${value}[/color]`;
-          return value;
-        });
-      
-        return result
-          .replace(/<div\s+align=(["']?)(left|center|right)\1\s*>([\s\S]*?)<\/div>/gi, '[$2]$3[/$2]')
-          .replace(/<spoiler>([\s\S]*?)<\/spoiler>/gi, '[mask]$1[/mask]')
-          .replace(/<mask>([\s\S]*?)<\/mask>/gi, '[mask]$1[/mask]')
-          .replace(/<u>([\s\S]*?)<\/u>/gi, '[u]$1[/u]');
-      }
-      
-      markdown.renderer.rules.text = (tokens, index) => tokens[index].content;
-      markdown.renderer.rules.code_inline = (tokens, index) => `[size=12][color=#666]${tokens[index].content}[/color][/size]`;
-      markdown.renderer.rules.code_block = (tokens, index) => `[code]${tokens[index].content.replace(/\n$/, '')}[/code]\n\n`;
-      markdown.renderer.rules.fence = markdown.renderer.rules.code_block;
-      markdown.renderer.rules.softbreak = () => '\n';
-      markdown.renderer.rules.hardbreak = () => '\n';
-      
-      markdown.renderer.rules.strong_open = () => '[b]';
-      markdown.renderer.rules.strong_close = () => '[/b]';
-      markdown.renderer.rules.em_open = () => '[i]';
-      markdown.renderer.rules.em_close = () => '[/i]';
-      markdown.renderer.rules.s_open = () => '[s]';
-      markdown.renderer.rules.s_close = () => '[/s]';
-      
-      markdown.renderer.rules.paragraph_open = () => '';
-      markdown.renderer.rules.paragraph_close = () => '\n\n';
-      markdown.renderer.rules.heading_open = (tokens, index) => `[b][size=${headingSize(tokens[index])}]`;
-      markdown.renderer.rules.heading_close = () => '[/size][/b]\n\n';
-      
-      markdown.renderer.rules.link_open = (tokens, index) => {
-        const href = attr(tokens[index], 'href');
-        return isSafeLink(href) ? `[url=${href}]` : '';
-      };
-      markdown.renderer.rules.link_close = () => '[/url]';
-      markdown.renderer.rules.image = (tokens, index) => {
-        const src = attr(tokens[index], 'src');
-        return src && isSafeImage(src) ? `[img]${src}[/img]` : '';
-      };
-      
-      markdown.renderer.rules.blockquote_open = () => '[quote]';
-      markdown.renderer.rules.blockquote_close = () => '[/quote]\n\n';
-      
-      markdown.renderer.rules.bullet_list_open = (_tokens, _index, _options, env) => {
-        env.listStack ??= [];
-        env.listStack.push({ type: 'bullet' });
-        return '';
-      };
-      markdown.renderer.rules.bullet_list_close = (_tokens, _index, _options, env) => {
-        env.listStack.pop();
-        return '\n';
-      };
-      markdown.renderer.rules.ordered_list_open = (tokens, index, _options, env) => {
-        env.listStack ??= [];
-        env.listStack.push({ type: 'ordered', next: Number(attr(tokens[index], 'start') || 1) });
-        return '';
-      };
-      markdown.renderer.rules.ordered_list_close = (_tokens, _index, _options, env) => {
-        env.listStack.pop();
-        return '\n';
-      };
-      markdown.renderer.rules.list_item_open = (_tokens, _index, _options, env) => {
-        const current = env.listStack?.[env.listStack.length - 1];
-        if (!current || current.type === 'bullet') return '* ';
-        const marker = `${current.next}. `;
-        current.next += 1;
-        return marker;
-      };
-      markdown.renderer.rules.list_item_close = () => '\n';
-      
-      markdown.renderer.rules.hr = () => '___________________________________________________________________________\n\n';
-      markdown.renderer.rules.html_block = () => '';
-      markdown.renderer.rules.html_inline = () => '';
-      markdown.renderer.rules.table_open = () => '';
-      markdown.renderer.rules.table_close = () => '\n';
-      markdown.renderer.rules.thead_open = () => '';
-      markdown.renderer.rules.thead_close = () => '';
-      markdown.renderer.rules.tbody_open = () => '';
-      markdown.renderer.rules.tbody_close = () => '';
-      markdown.renderer.rules.tr_open = () => '';
-      markdown.renderer.rules.tr_close = () => '\n';
-      markdown.renderer.rules.th_open = () => '';
-      markdown.renderer.rules.th_close = () => ' | ';
-      markdown.renderer.rules.td_open = () => '';
-      markdown.renderer.rules.td_close = () => ' | ';
-      
-      function normalizeBBCode(value) {
-        return value
-          .replace(/[ \t]+\n/g, '\n')
-          .replace(/\n+\[\/quote\]/g, '[/quote]')
-          .replace(/\[quote\]\n+/g, '[quote]')
-          .replace(/\n{3,}/g, '\n\n')
-          .trim();
-      }
-      
-      
-      function markdownToBBCode(source) {
-        if (!source) return '';
-        return normalizeBBCode(markdown.render(preprocessMarkdown(source), { listStack: [] }));
-      }
-      
-      function bbcodeToMarkdownChat(source) {
-        if (!source) return '';
-        return normalizeMarkdown(renderBBCodeNodeAsMarkdownChat(parseBBCode(String(source))));
-      }
-      
-      function markdownToBBCodeChat(source) {
-        if (!source) return '';
-        return normalizeBBCode(chatMarkdown.render(preprocessMarkdown(source)));
-      }
-      
-      
-      
-
-      return markdownToBBCode;
+  loadScript(markdownItUrl).then(() => {
+    const markdown = window.markdownit({
+      html: false,
+      linkify: true,
+      breaks: false,
+      typographer: false
     });
-
-    return markdownToBBCodePromise;
-  }
-
-  const md2bbcode = {
-    markdownToBBCode(source) {
-      return ensureMarkdownToBBCode().then(markdownToBBCode => markdownToBBCode(source));
-    },
-    bbcodeToMarkdown(source) {
-      return bbcodeToMarkdown(source);
-    },
-    markdownToBBCodeChat(source) {
-      return ensureMarkdownToBBCode().then(() => markdownToBBCodeChat(source));
-    },
-    bbcodeToMarkdownChat(source) {
-      return bbcodeToMarkdownChat(source);
+    
+    const unsafeProtocol = /^(?:javascript|vbscript|file|data):/i;
+    const safeImageDataProtocol = /^data:image\/(?:png|gif|jpeg|webp);/i;
+    
+    markdown.validateLink = url => !unsafeProtocol.test(url) || safeImageDataProtocol.test(url);
+    
+    function attr(token, name) {
+      const value = token.attrGet(name);
+      return value == null ? '' : value;
     }
-  };
-
+    
+    function isSafeLink(url) {
+      return !unsafeProtocol.test(url) || safeImageDataProtocol.test(url);
+    }
+    
+    function isSafeImage(url) {
+      return !unsafeProtocol.test(url) || safeImageDataProtocol.test(url);
+    }
+    
+    function headingSize(token) {
+      const level = Number(String(token.tag || 'h1').replace('h', '')) || 1;
+      return Math.max(16, 26 - level * 2);
+    }
+    
+    function compactDetailsBody(value) {
+      return value
+        .replace(/[\t\r\f\v]+/g, ' ')
+        .replace(/\n+/g, ' ')
+        .replace(/ {2,}/g, '\n')
+        .trim();
+    }
+    
+    function replaceInnermostTag(source, openTag, closeTag, processor) {
+      let result = source;
+      while (true) {
+        let closeIndex = result.indexOf(closeTag);
+        if (closeIndex === -1) break;
+    
+        // Find the nearest opening tag before this closing tag
+        let openIndex = -1;
+        let depth = 0;
+        for (let i = closeIndex - 1; i >= 0; i -= 1) {
+          if (result.startsWith(closeTag, i)) {
+            depth += 1;
+          } else if (result.startsWith(openTag, i)) {
+            if (depth === 0) {
+              openIndex = i;
+              break;
+            }
+            depth -= 1;
+          }
+        }
+    
+        if (openIndex === -1) break;
+    
+        const fullMatch = result.slice(openIndex, closeIndex + closeTag.length);
+        const replacement = processor(fullMatch, openIndex);
+        if (replacement === fullMatch) break;
+    
+        result = result.slice(0, openIndex) + replacement + result.slice(closeIndex + closeTag.length);
+      }
+      return result;
+    }
+    
+    function preprocessMarkdown(source) {
+      let result = String(source)
+        .replace(/<!--[\s\S]*?-->/g, '');
+    
+      // Process nested <details> from innermost to outermost
+      result = replaceInnermostTag(result, '<details', '</details>', (fullMatch) => {
+        const summaryMatch = fullMatch.match(/<details>\s*<summary>([\s\S]*?)<\/summary>\s*([\s\S]*)<\/details>/i);
+        if (summaryMatch) {
+          const title = summaryMatch[1].trim();
+          const content = compactDetailsBody(summaryMatch[2]);
+          return title
+            ? `\n[color=yellowgreen]${title}[/color] [mask]${content}[/mask]\n`
+            : `\n[mask]${content}[/mask]\n`;
+        }
+        const noSummaryMatch = fullMatch.match(/<details>\s*([\s\S]*?)<\/details>/i);
+        if (noSummaryMatch) {
+          return `\n[mask]${compactDetailsBody(noSummaryMatch[1])}[/mask]\n`;
+        }
+        return fullMatch;
+      });
+    
+      // Process nested <span style=...> from innermost to outermost
+      result = replaceInnermostTag(result, '<span', '</span>', (fullMatch) => {
+        const openMatch = fullMatch.match(/^<span\s+style=(["'])([^"']*?)\1\s*>([\s\S]*)<\/span>$/i);
+        if (!openMatch) return fullMatch;
+        const style = openMatch[2];
+        const content = openMatch[3];
+    
+        const color = /(?:^|;)\s*color\s*:\s*([^;]+)/i.exec(style)?.[1]?.trim();
+        const size = /(?:^|;)\s*font-size\s*:\s*([0-9.]+)(?:px)?/i.exec(style)?.[1]?.trim();
+        const family = /(?:^|;)\s*font-family\s*:\s*([^;]+)/i.exec(style)?.[1]?.trim();
+    
+        let value = content;
+        if (family) value = `[font=${family.replace(/^["']|["']$/g, '')}]${value}[/font]`;
+        if (size) value = `[size=${size}]${value}[/size]`;
+        if (color) value = `[color=${color}]${value}[/color]`;
+        return value;
+      });
+    
+      return result
+        .replace(/<div\s+align=(["']?)(left|center|right)\1\s*>([\s\S]*?)<\/div>/gi, '[$2]$3[/$2]')
+        .replace(/<spoiler>([\s\S]*?)<\/spoiler>/gi, '[mask]$1[/mask]')
+        .replace(/<mask>([\s\S]*?)<\/mask>/gi, '[mask]$1[/mask]')
+        .replace(/<u>([\s\S]*?)<\/u>/gi, '[u]$1[/u]');
+    }
+    
+    markdown.renderer.rules.text = (tokens, index) => tokens[index].content;
+    markdown.renderer.rules.code_inline = (tokens, index) => `[size=12][color=#666]${tokens[index].content}[/color][/size]`;
+    markdown.renderer.rules.code_block = (tokens, index) => `[code]${tokens[index].content.replace(/\n$/, '')}[/code]\n\n`;
+    markdown.renderer.rules.fence = markdown.renderer.rules.code_block;
+    markdown.renderer.rules.softbreak = () => '\n';
+    markdown.renderer.rules.hardbreak = () => '\n';
+    
+    markdown.renderer.rules.strong_open = () => '[b]';
+    markdown.renderer.rules.strong_close = () => '[/b]';
+    markdown.renderer.rules.em_open = () => '[i]';
+    markdown.renderer.rules.em_close = () => '[/i]';
+    markdown.renderer.rules.s_open = () => '[s]';
+    markdown.renderer.rules.s_close = () => '[/s]';
+    
+    markdown.renderer.rules.paragraph_open = () => '';
+    markdown.renderer.rules.paragraph_close = () => '\n\n';
+    markdown.renderer.rules.heading_open = (tokens, index) => `[b][size=${headingSize(tokens[index])}]`;
+    markdown.renderer.rules.heading_close = () => '[/size][/b]\n\n';
+    
+    markdown.renderer.rules.link_open = (tokens, index) => {
+      const href = attr(tokens[index], 'href');
+      return isSafeLink(href) ? `[url=${href}]` : '';
+    };
+    markdown.renderer.rules.link_close = () => '[/url]';
+    markdown.renderer.rules.image = (tokens, index) => {
+      const src = attr(tokens[index], 'src');
+      return src && isSafeImage(src) ? `[img]${src}[/img]` : '';
+    };
+    
+    markdown.renderer.rules.blockquote_open = () => '[quote]';
+    markdown.renderer.rules.blockquote_close = () => '[/quote]\n\n';
+    
+    markdown.renderer.rules.bullet_list_open = (_tokens, _index, _options, env) => {
+      env.listStack ??= [];
+      env.listStack.push({ type: 'bullet' });
+      return '';
+    };
+    markdown.renderer.rules.bullet_list_close = (_tokens, _index, _options, env) => {
+      env.listStack.pop();
+      return '\n';
+    };
+    markdown.renderer.rules.ordered_list_open = (tokens, index, _options, env) => {
+      env.listStack ??= [];
+      env.listStack.push({ type: 'ordered', next: Number(attr(tokens[index], 'start') || 1) });
+      return '';
+    };
+    markdown.renderer.rules.ordered_list_close = (_tokens, _index, _options, env) => {
+      env.listStack.pop();
+      return '\n';
+    };
+    markdown.renderer.rules.list_item_open = (_tokens, _index, _options, env) => {
+      const current = env.listStack?.[env.listStack.length - 1];
+      if (!current || current.type === 'bullet') return '* ';
+      const marker = `${current.next}. `;
+      current.next += 1;
+      return marker;
+    };
+    markdown.renderer.rules.list_item_close = () => '\n';
+    
+    markdown.renderer.rules.hr = () => '___________________________________________________________________________\n\n';
+    markdown.renderer.rules.html_block = () => '';
+    markdown.renderer.rules.html_inline = () => '';
+    markdown.renderer.rules.table_open = () => '';
+    markdown.renderer.rules.table_close = () => '\n';
+    markdown.renderer.rules.thead_open = () => '';
+    markdown.renderer.rules.thead_close = () => '';
+    markdown.renderer.rules.tbody_open = () => '';
+    markdown.renderer.rules.tbody_close = () => '';
+    markdown.renderer.rules.tr_open = () => '';
+    markdown.renderer.rules.tr_close = () => '\n';
+    markdown.renderer.rules.th_open = () => '';
+    markdown.renderer.rules.th_close = () => ' | ';
+    markdown.renderer.rules.td_open = () => '';
+    markdown.renderer.rules.td_close = () => ' | ';
+    
+    function normalizeBBCode(value) {
+      return value
+        .replace(/[ \t]+\n/g, '\n')
+        .replace(/\n+\[\/quote\]/g, '[/quote]')
+        .replace(/\[quote\]\n+/g, '[quote]')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    }
+    
     const bbcodeTagPattern = /\[(\/)?([a-z*]+)(?:=([^\]]*))?\]/gi;
     const headingSizeRanges = [
       { min: 24, marker: '#' },
@@ -603,7 +559,7 @@
     // ===== Chat (Re:Dollars) limited converter =====
     // Re:Dollars only supports: [b], [i], [u], [s], [code], [url], [mask]
     
-    const chatMarkdown = new MarkdownIt({
+    const chatMarkdown = window.markdownit({
       html: false,
       linkify: false,
       breaks: false,
@@ -631,7 +587,11 @@
     chatMarkdown.renderer.rules.hr = () => '';
     chatMarkdown.renderer.rules.html_block = () => '';
     chatMarkdown.renderer.rules.html_inline = () => '';
-    chatMarkdown.renderer.rules.image = () => '';
+    chatMarkdown.renderer.rules.image = (tokens, index) => {
+      const src = attr(tokens[index], 'src');
+      const destination = formatMarkdownDestination(src);
+      return destination ? `![${escapeMarkdownLinkLabel(tokens[index].content || '')}](${destination})` : '';
+    };
     chatMarkdown.renderer.rules.table_open = () => '';
     chatMarkdown.renderer.rules.table_close = () => '';
     chatMarkdown.renderer.rules.thead_open = () => '';
@@ -689,25 +649,113 @@
       return converted.replace(/\x00LINK(\d+)\x00/g, (_m, index) => protectedLinks[Number(index)]);
     }
     
+    function markdownToBBCode(source) {
+      if (!source) return '';
+      return normalizeBBCode(markdown.render(preprocessMarkdown(source), { listStack: [] }));
+    }
+    
+    function bbcodeToMarkdownChat(source) {
+      if (!source) return '';
+      return normalizeMarkdown(renderBBCodeNodeAsMarkdownChat(parseBBCode(String(source))));
+    }
+    
+    function markdownToBBCodeChat(source) {
+      if (!source) return '';
+      return normalizeBBCode(chatMarkdown.render(preprocessMarkdown(source)));
+    }
+    
+    const md2bbcode = {
+      markdownToBBCode,
+      bbcodeToMarkdown,
+      markdownToBBCodeChat,
+      bbcodeToMarkdownChat
+    };
     
 
     const SCRIPT_CLASS = 'md2bbcode';
     const STORAGE_KEY = 'md2bbcode_settings';
+    const COOKIE_KEYS = {
+      chatButtons: 'md2bbcode_chat',
+      toolbarButtons: 'md2bbcode_toolbar'
+    };
+    
+    function getLocalStorage() {
+      try {
+        return window.localStorage;
+      } catch {
+        return null;
+      }
+    }
+    
+    function getCookie(name) {
+      try {
+        if (window.$ && typeof window.$.cookie === 'function') {
+          return window.$.cookie(name);
+        }
+      } catch {
+        // Fall through to document.cookie.
+      }
+    
+      try {
+        const prefix = `${encodeURIComponent(name)}=`;
+        const item = document.cookie.split('; ').find(cookie => cookie.startsWith(prefix));
+        return item ? decodeURIComponent(item.slice(prefix.length)) : undefined;
+      } catch {
+        return undefined;
+      }
+    }
+    
+    function setCookie(name, value) {
+      try {
+        if (window.$ && typeof window.$.cookie === 'function') {
+          window.$.cookie(name, value, { expires: 365, path: '/' });
+          return;
+        }
+      } catch {
+        // Fall through to document.cookie.
+      }
+    
+      try {
+        document.cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}; max-age=31536000; path=/`;
+      } catch {
+        // Ignore unavailable cookie storage.
+      }
+    }
     
     function loadSettings() {
+      const storage = getLocalStorage();
+      if (!storage) return {};
+    
       try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+        return JSON.parse(storage.getItem(STORAGE_KEY)) || {};
       } catch {
         return {};
       }
     }
     
     function saveSettings(settings) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+      const storage = getLocalStorage();
+      if (!storage) return;
+    
+      try {
+        storage.setItem(STORAGE_KEY, JSON.stringify(settings));
+      } catch {
+        // Ignore unavailable localStorage in component sandboxes.
+      }
     }
     
     function getSetting(key, defaultValue) {
+      const cookieValue = getCookie(COOKIE_KEYS[key] || key);
+      if (cookieValue != null && cookieValue !== '') return cookieValue;
       return loadSettings()[key] ?? defaultValue;
+    }
+    
+    function setSetting(key, value) {
+      setCookie(COOKIE_KEYS[key] || key, value);
+    
+      const settings = loadSettings();
+      settings[key] = value;
+      saveSettings(settings);
     }
     
     const markdownIcon = `
@@ -1138,47 +1186,57 @@
     }
     
     function registerConfigPanel() {
-      if (typeof chiiLib === 'undefined' || !chiiLib.ukagaka) return;
+      const ukagaka = window.chiiLib?.ukagaka;
+      if (!ukagaka?.addPanelTab) return false;
     
-      chiiLib.ukagaka.addGeneralConfig({
-        title: 'Re:Dollars 聊天按钮',
-        name: 'md2bbcode_chat',
-        type: 'radio',
-        defaultValue: 'both',
-        getCurrentValue: () => getSetting('chatButtons', 'both'),
-        onChange: (value) => {
-          const settings = loadSettings();
-          settings.chatButtons = value;
-          saveSettings(settings);
-        },
-        options: [
-          { value: 'both', label: '显示两个按钮' },
-          { value: 'markdown-only', label: '只显示 Markdown→BBCode' },
-          { value: 'none', label: '不显示' }
+      ukagaka.removePanelTab?.('md2bbcode');
+    
+      ukagaka.addPanelTab({
+        tab: 'md2bbcode',
+        label: 'MD2BBCode',
+        type: 'options',
+        config: [
+          {
+            title: 'Re:Dollars 聊天按钮',
+            name: 'md2bbcode_chat',
+            type: 'radio',
+            defaultValue: 'both',
+            getCurrentValue: () => getSetting('chatButtons', 'both'),
+            onChange: value => setSetting('chatButtons', value),
+            options: [
+              { value: 'both', label: '显示两个按钮' },
+              { value: 'markdown-only', label: '只显示 Markdown→BBCode' },
+              { value: 'none', label: '不显示' }
+            ]
+          },
+          {
+            title: '编辑器工具栏按钮',
+            name: 'md2bbcode_toolbar',
+            type: 'radio',
+            defaultValue: 'both',
+            getCurrentValue: () => getSetting('toolbarButtons', 'both'),
+            onChange: value => setSetting('toolbarButtons', value),
+            options: [
+              { value: 'both', label: '显示两个按钮' },
+              { value: 'markdown-only', label: '只显示 Markdown→BBCode' },
+              { value: 'none', label: '不显示' }
+            ]
+          }
         ]
       });
     
-      chiiLib.ukagaka.addGeneralConfig({
-        title: '编辑器工具栏按钮',
-        name: 'md2bbcode_toolbar',
-        type: 'radio',
-        defaultValue: 'both',
-        getCurrentValue: () => getSetting('toolbarButtons', 'both'),
-        onChange: (value) => {
-          const settings = loadSettings();
-          settings.toolbarButtons = value;
-          saveSettings(settings);
-        },
-        options: [
-          { value: 'both', label: '显示两个按钮' },
-          { value: 'markdown-only', label: '只显示 Markdown→BBCode' },
-          { value: 'none', label: '不显示' }
-        ]
-      });
+      return true;
+    }
+    
+    function registerConfigPanelWhenReady(retries = 20) {
+      if (registerConfigPanel()) return;
+      if (retries <= 0) return;
+    
+      setTimeout(() => registerConfigPanelWhenReady(retries - 1), 500);
     }
     
     injectStyle();
-    registerConfigPanel();
+    registerConfigPanelWhenReady();
     enhanceAllEditors();
     
     // ===== MutationObserver：监听 markItUp 的动态生成 =====
@@ -1243,4 +1301,7 @@
       }
     });
     
+  }).catch(error => {
+    console.error('[md2bbcode] failed to initialize', error);
+  });
 })();
