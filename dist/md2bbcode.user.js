@@ -5934,6 +5934,21 @@ ${content}
 
   // src/userscript/app.js
   var SCRIPT_CLASS = "md2bbcode";
+  var STORAGE_KEY = "md2bbcode_settings";
+  function loadSettings() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    } catch (e) {
+      return {};
+    }
+  }
+  function saveSettings(settings) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  }
+  function getSetting(key, defaultValue) {
+    var _a2;
+    return (_a2 = loadSettings()[key]) != null ? _a2 : defaultValue;
+  }
   var markdownIcon = `
   <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
     <path d="M3.2 4.6c0-.66.54-1.2 1.2-1.2h11.2c.66 0 1.2.54 1.2 1.2v10.8c0 .66-.54 1.2-1.2 1.2H4.4c-.66 0-1.2-.54-1.2-1.2V4.6Zm1.8.6v9.6h10V5.2H5Z"/>
@@ -6026,44 +6041,47 @@ ${content}
     button.innerHTML = icon;
     return button;
   }
+  function bindConvertButton(button, textarea, direction) {
+    button.addEventListener("click", async (event) => {
+      event.preventDefault();
+      if (button.classList.contains(`${SCRIPT_CLASS}Loading`)) return;
+      button.classList.add(`${SCRIPT_CLASS}Loading`);
+      try {
+        await convertSelection(textarea, direction);
+      } catch (error2) {
+        console.error("[md2bbcode] failed to convert text", error2);
+      } finally {
+        button.classList.remove(`${SCRIPT_CLASS}Loading`);
+      }
+    });
+  }
   function addConversionButtons(toolbar, textarea) {
     if (toolbar.querySelector('[data-md2bbcode-toolbar="true"]')) return;
+    const mode = getSetting("toolbarButtons", "both");
+    if (mode === "none") return;
     const convertBtn = createToolbarButton(
       `${SCRIPT_CLASS}ConvertBtn`,
       "Markdown \u8F6C BBCode\uFF08\u6709\u9009\u533A\u65F6\u53EA\u8F6C\u6362\u9009\u533A\uFF09",
       markdownIcon
     );
-    const reverseBtn = createToolbarButton(
-      `${SCRIPT_CLASS}ReverseBtn`,
-      "BBCode \u8F6C Markdown\uFF08\u6709\u9009\u533A\u65F6\u53EA\u8F6C\u6362\u9009\u533A\uFF09",
-      bbcodeIcon
-    );
-    function bindConvertButton(button, direction) {
-      button.addEventListener("click", async (event) => {
-        event.preventDefault();
-        if (button.classList.contains(`${SCRIPT_CLASS}Loading`)) return;
-        button.classList.add(`${SCRIPT_CLASS}Loading`);
-        try {
-          await convertSelection(textarea, direction);
-        } catch (error2) {
-          console.error("[md2bbcode] failed to convert text", error2);
-        } finally {
-          button.classList.remove(`${SCRIPT_CLASS}Loading`);
-        }
-      });
-    }
-    bindConvertButton(convertBtn, "markdown-to-bbcode");
-    bindConvertButton(reverseBtn, "bbcode-to-markdown");
+    bindConvertButton(convertBtn, textarea, "markdown-to-bbcode");
     const cleanBtn = Array.from(toolbar.children).find((child) => {
       var _a2;
       return (_a2 = child.classList) == null ? void 0 : _a2.contains("tool_clean");
     });
     if (cleanBtn) {
       toolbar.insertBefore(convertBtn, cleanBtn);
-      toolbar.insertBefore(reverseBtn, cleanBtn);
     } else {
       toolbar.append(convertBtn);
-      toolbar.append(reverseBtn);
+    }
+    if (mode === "both") {
+      const reverseBtn = createToolbarButton(
+        `${SCRIPT_CLASS}ReverseBtn`,
+        "BBCode \u8F6C Markdown\uFF08\u6709\u9009\u533A\u65F6\u53EA\u8F6C\u6362\u9009\u533A\uFF09",
+        bbcodeIcon
+      );
+      bindConvertButton(reverseBtn, textarea, "bbcode-to-markdown");
+      toolbar.insertBefore(reverseBtn, convertBtn.nextSibling);
     }
   }
   function addChatConversionButtons(editor) {
@@ -6082,15 +6100,15 @@ ${content}
     const headerButtons = chatWindow.querySelector(".header-buttons");
     if (!headerButtons) return;
     if (headerButtons.querySelector('[data-md2bbcode="true"]')) return;
+    const mode = getSetting("chatButtons", "both");
+    if (mode === "none") {
+      editor.dataset.md2bbcodeEnhanced = "true";
+      return;
+    }
     const convertBtn = createChatButton(
       `${SCRIPT_CLASS}ChatConvertBtn`,
       "Markdown \u8F6C BBCode\uFF08\u6709\u9009\u533A\u65F6\u53EA\u8F6C\u6362\u9009\u533A\uFF09",
       markdownIcon
-    );
-    const reverseBtn = createChatButton(
-      `${SCRIPT_CLASS}ChatReverseBtn`,
-      "BBCode \u8F6C Markdown\uFF08\u6709\u9009\u533A\u65F6\u53EA\u8F6C\u6362\u9009\u533A\uFF09",
-      bbcodeIcon
     );
     function bindChatButton(button, direction) {
       button.addEventListener("click", async (event) => {
@@ -6110,14 +6128,20 @@ ${content}
       });
     }
     bindChatButton(convertBtn, "markdown-to-bbcode");
-    bindChatButton(reverseBtn, "bbcode-to-markdown");
     const searchBtn = headerButtons.querySelector("#dollars-search-btn");
     if (searchBtn) {
       headerButtons.insertBefore(convertBtn, searchBtn);
-      headerButtons.insertBefore(reverseBtn, searchBtn);
     } else {
-      headerButtons.prepend(reverseBtn);
       headerButtons.prepend(convertBtn);
+    }
+    if (mode === "both") {
+      const reverseBtn = createChatButton(
+        `${SCRIPT_CLASS}ChatReverseBtn`,
+        "BBCode \u8F6C Markdown\uFF08\u6709\u9009\u533A\u65F6\u53EA\u8F6C\u6362\u9009\u533A\uFF09",
+        bbcodeIcon
+      );
+      bindChatButton(reverseBtn, "bbcode-to-markdown");
+      headerButtons.insertBefore(reverseBtn, searchBtn || convertBtn);
     }
     editor.dataset.md2bbcodeEnhanced = "true";
   }
@@ -6266,7 +6290,45 @@ ${content}
   `;
     document.head.append(style);
   }
+  function registerConfigPanel() {
+    if (typeof chiiLib === "undefined" || !chiiLib.ukagaka) return;
+    chiiLib.ukagaka.addGeneralConfig({
+      title: "Re:Dollars \u804A\u5929\u6309\u94AE",
+      name: "md2bbcode_chat",
+      type: "radio",
+      defaultValue: "both",
+      getCurrentValue: () => getSetting("chatButtons", "both"),
+      onChange: (value) => {
+        const settings = loadSettings();
+        settings.chatButtons = value;
+        saveSettings(settings);
+      },
+      options: [
+        { value: "both", label: "\u663E\u793A\u4E24\u4E2A\u6309\u94AE" },
+        { value: "markdown-only", label: "\u53EA\u663E\u793A Markdown\u2192BBCode" },
+        { value: "none", label: "\u4E0D\u663E\u793A" }
+      ]
+    });
+    chiiLib.ukagaka.addGeneralConfig({
+      title: "\u7F16\u8F91\u5668\u5DE5\u5177\u680F\u6309\u94AE",
+      name: "md2bbcode_toolbar",
+      type: "radio",
+      defaultValue: "both",
+      getCurrentValue: () => getSetting("toolbarButtons", "both"),
+      onChange: (value) => {
+        const settings = loadSettings();
+        settings.toolbarButtons = value;
+        saveSettings(settings);
+      },
+      options: [
+        { value: "both", label: "\u663E\u793A\u4E24\u4E2A\u6309\u94AE" },
+        { value: "markdown-only", label: "\u53EA\u663E\u793A Markdown\u2192BBCode" },
+        { value: "none", label: "\u4E0D\u663E\u793A" }
+      ]
+    });
+  }
   injectStyle();
+  registerConfigPanel();
   enhanceAllEditors();
   var observer = new MutationObserver((mutations) => {
     var _a2, _b, _c, _d;

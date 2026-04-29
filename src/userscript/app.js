@@ -1,6 +1,23 @@
 import { md2bbcode } from '../core/markdown-to-bbcode.js';
 
 const SCRIPT_CLASS = 'md2bbcode';
+const STORAGE_KEY = 'md2bbcode_settings';
+
+function loadSettings() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+
+function saveSettings(settings) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+}
+
+function getSetting(key, defaultValue) {
+  return loadSettings()[key] ?? defaultValue;
+}
 
 const markdownIcon = `
   <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
@@ -117,46 +134,51 @@ function createChatButton(className, title, icon) {
   return button;
 }
 
+function bindConvertButton(button, textarea, direction) {
+  button.addEventListener('click', async event => {
+    event.preventDefault();
+    if (button.classList.contains(`${SCRIPT_CLASS}Loading`)) return;
+
+    button.classList.add(`${SCRIPT_CLASS}Loading`);
+    try {
+      await convertSelection(textarea, direction);
+    } catch (error) {
+      console.error('[md2bbcode] failed to convert text', error);
+    } finally {
+      button.classList.remove(`${SCRIPT_CLASS}Loading`);
+    }
+  });
+}
+
+
 function addConversionButtons(toolbar, textarea) {
   if (toolbar.querySelector('[data-md2bbcode-toolbar="true"]')) return;
+
+  const mode = getSetting('toolbarButtons', 'both');
+  if (mode === 'none') return;
 
   const convertBtn = createToolbarButton(
     `${SCRIPT_CLASS}ConvertBtn`,
     'Markdown 转 BBCode（有选区时只转换选区）',
     markdownIcon
   );
-  const reverseBtn = createToolbarButton(
-    `${SCRIPT_CLASS}ReverseBtn`,
-    'BBCode 转 Markdown（有选区时只转换选区）',
-    bbcodeIcon
-  );
-
-  function bindConvertButton(button, direction) {
-    button.addEventListener('click', async event => {
-      event.preventDefault();
-      if (button.classList.contains(`${SCRIPT_CLASS}Loading`)) return;
-
-      button.classList.add(`${SCRIPT_CLASS}Loading`);
-      try {
-        await convertSelection(textarea, direction);
-      } catch (error) {
-        console.error('[md2bbcode] failed to convert text', error);
-      } finally {
-        button.classList.remove(`${SCRIPT_CLASS}Loading`);
-      }
-    });
-  }
-
-  bindConvertButton(convertBtn, 'markdown-to-bbcode');
-  bindConvertButton(reverseBtn, 'bbcode-to-markdown');
+  bindConvertButton(convertBtn, textarea, 'markdown-to-bbcode');
 
   const cleanBtn = Array.from(toolbar.children).find(child => child.classList?.contains('tool_clean'));
   if (cleanBtn) {
     toolbar.insertBefore(convertBtn, cleanBtn);
-    toolbar.insertBefore(reverseBtn, cleanBtn);
   } else {
     toolbar.append(convertBtn);
-    toolbar.append(reverseBtn);
+  }
+
+  if (mode === 'both') {
+    const reverseBtn = createToolbarButton(
+      `${SCRIPT_CLASS}ReverseBtn`,
+      'BBCode 转 Markdown（有选区时只转换选区）',
+      bbcodeIcon
+    );
+    bindConvertButton(reverseBtn, textarea, 'bbcode-to-markdown');
+    toolbar.insertBefore(reverseBtn, convertBtn.nextSibling);
   }
 }
 
@@ -184,15 +206,16 @@ function addChatConversionButtons(editor) {
   // Avoid duplicate buttons in the same chat window
   if (headerButtons.querySelector('[data-md2bbcode="true"]')) return;
 
+  const mode = getSetting('chatButtons', 'both');
+  if (mode === 'none') {
+    editor.dataset.md2bbcodeEnhanced = 'true';
+    return;
+  }
+
   const convertBtn = createChatButton(
     `${SCRIPT_CLASS}ChatConvertBtn`,
     'Markdown 转 BBCode（有选区时只转换选区）',
     markdownIcon
-  );
-  const reverseBtn = createChatButton(
-    `${SCRIPT_CLASS}ChatReverseBtn`,
-    'BBCode 转 Markdown（有选区时只转换选区）',
-    bbcodeIcon
   );
 
   function bindChatButton(button, direction) {
@@ -218,16 +241,22 @@ function addChatConversionButtons(editor) {
   }
 
   bindChatButton(convertBtn, 'markdown-to-bbcode');
-  bindChatButton(reverseBtn, 'bbcode-to-markdown');
 
-  // Insert before the search button in header-buttons
   const searchBtn = headerButtons.querySelector('#dollars-search-btn');
   if (searchBtn) {
     headerButtons.insertBefore(convertBtn, searchBtn);
-    headerButtons.insertBefore(reverseBtn, searchBtn);
   } else {
-    headerButtons.prepend(reverseBtn);
     headerButtons.prepend(convertBtn);
+  }
+
+  if (mode === 'both') {
+    const reverseBtn = createChatButton(
+      `${SCRIPT_CLASS}ChatReverseBtn`,
+      'BBCode 转 Markdown（有选区时只转换选区）',
+      bbcodeIcon
+    );
+    bindChatButton(reverseBtn, 'bbcode-to-markdown');
+    headerButtons.insertBefore(reverseBtn, searchBtn || convertBtn);
   }
 
   editor.dataset.md2bbcodeEnhanced = 'true';
@@ -417,7 +446,48 @@ function injectStyle() {
   document.head.append(style);
 }
 
+function registerConfigPanel() {
+  if (typeof chiiLib === 'undefined' || !chiiLib.ukagaka) return;
+
+  chiiLib.ukagaka.addGeneralConfig({
+    title: 'Re:Dollars 聊天按钮',
+    name: 'md2bbcode_chat',
+    type: 'radio',
+    defaultValue: 'both',
+    getCurrentValue: () => getSetting('chatButtons', 'both'),
+    onChange: (value) => {
+      const settings = loadSettings();
+      settings.chatButtons = value;
+      saveSettings(settings);
+    },
+    options: [
+      { value: 'both', label: '显示两个按钮' },
+      { value: 'markdown-only', label: '只显示 Markdown→BBCode' },
+      { value: 'none', label: '不显示' }
+    ]
+  });
+
+  chiiLib.ukagaka.addGeneralConfig({
+    title: '编辑器工具栏按钮',
+    name: 'md2bbcode_toolbar',
+    type: 'radio',
+    defaultValue: 'both',
+    getCurrentValue: () => getSetting('toolbarButtons', 'both'),
+    onChange: (value) => {
+      const settings = loadSettings();
+      settings.toolbarButtons = value;
+      saveSettings(settings);
+    },
+    options: [
+      { value: 'both', label: '显示两个按钮' },
+      { value: 'markdown-only', label: '只显示 Markdown→BBCode' },
+      { value: 'none', label: '不显示' }
+    ]
+  });
+}
+
 injectStyle();
+registerConfigPanel();
 enhanceAllEditors();
 
 // ===== MutationObserver：监听 markItUp 的动态生成 =====
