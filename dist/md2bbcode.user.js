@@ -6021,6 +6021,7 @@ ${content}
     button.className = `${SCRIPT_CLASS}ChatBtn ${className}`;
     button.title = title;
     button.setAttribute("aria-label", title);
+    button.setAttribute("data-md2bbcode", "true");
     button.innerHTML = icon;
     return button;
   }
@@ -6079,7 +6080,7 @@ ${content}
     if (!chatWindow) return;
     const headerButtons = chatWindow.querySelector(".header-buttons");
     if (!headerButtons) return;
-    if (headerButtons.querySelector(`.${SCRIPT_CLASS}ChatBtn`)) return;
+    if (headerButtons.querySelector('[data-md2bbcode="true"]')) return;
     const convertBtn = createChatButton(
       `${SCRIPT_CLASS}ChatConvertBtn`,
       "Markdown \u8F6C BBCode\uFF08\u6709\u9009\u533A\u65F6\u53EA\u8F6C\u6362\u9009\u533A\uFF09",
@@ -6230,16 +6231,17 @@ ${content}
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 24px;
-      height: 24px;
+      width: 20px;
+      height: 20px;
       padding: 0;
-      margin: 0 4px 0 0;
+      margin: 0 2px 0 0;
       border: none;
       border-radius: 4px;
       background: transparent;
       color: inherit;
       cursor: pointer;
       opacity: .75;
+      flex-shrink: 0;
       transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
                   opacity 0.15s ease;
     }
@@ -6249,8 +6251,8 @@ ${content}
     }
     .${SCRIPT_CLASS}ChatBtn svg {
       display: block;
-      width: 18px;
-      height: 18px;
+      width: 16px;
+      height: 16px;
       pointer-events: none;
       margin: auto;
       fill: currentColor;
