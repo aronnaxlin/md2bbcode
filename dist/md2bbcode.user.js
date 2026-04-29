@@ -5845,6 +5845,43 @@ ${content}
     textarea.focus();
     dispatchEditorEvents(textarea);
   }
+  async function convertContentEditable(editor, direction) {
+    var _a2;
+    const selection = window.getSelection();
+    let source = "";
+    let hasSelection = false;
+    let range = null;
+    if (selection && selection.rangeCount > 0) {
+      range = selection.getRangeAt(0);
+      if (editor.contains(range.commonAncestorContainer)) {
+        hasSelection = !range.collapsed;
+        if (hasSelection) {
+          source = range.toString();
+        }
+      }
+    }
+    if (!hasSelection) {
+      source = editor.innerText;
+    }
+    const converter = direction === "bbcode-to-markdown" ? md2bbcode.bbcodeToMarkdown : md2bbcode.markdownToBBCode;
+    const converted = await Promise.resolve(converter(source));
+    if (hasSelection && range) {
+      range.deleteContents();
+      range.insertNode(document.createTextNode(converted));
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    } else {
+      editor.innerText = converted;
+    }
+    editor.focus();
+    const proxy = (_a2 = editor.parentElement) == null ? void 0 : _a2.querySelector(".chat-textarea-proxy");
+    if (proxy) {
+      proxy.value = editor.innerText;
+      dispatchEditorEvents(proxy);
+    }
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+  }
   function createToolbarButton(className, title, icon) {
     const li = document.createElement("li");
     li.className = `markItUpButton tool_ico ${className}`;
@@ -5856,6 +5893,15 @@ ${content}
     button.innerHTML = icon;
     li.append(button);
     return li;
+  }
+  function createChatButton(className, title, icon) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `${SCRIPT_CLASS}ChatBtn ${className}`;
+    button.title = title;
+    button.setAttribute("aria-label", title);
+    button.innerHTML = icon;
+    return button;
   }
   function addConversionButtons(toolbar, textarea) {
     if (toolbar.querySelector(`.${SCRIPT_CLASS}ConvertBtn`)) return;
@@ -5896,6 +5942,51 @@ ${content}
       toolbar.append(convertBtn);
       toolbar.append(reverseBtn);
     }
+  }
+  function addChatConversionButtons(editor) {
+    var _a2;
+    if (editor.dataset.md2bbcodeEnhanced === "true") return;
+    const wrapper = editor.closest(".dollars-input-wrapper");
+    if (!wrapper) return;
+    const actions = wrapper.nextElementSibling;
+    if (!actions || !((_a2 = actions.classList) == null ? void 0 : _a2.contains("input-actions"))) return;
+    if (actions.querySelector(`.${SCRIPT_CLASS}ChatBtn`)) return;
+    const convertBtn = createChatButton(
+      `${SCRIPT_CLASS}ChatConvertBtn`,
+      "Markdown \u8F6C BBCode\uFF08\u6709\u9009\u533A\u65F6\u53EA\u8F6C\u6362\u9009\u533A\uFF09",
+      markdownIcon
+    );
+    const reverseBtn = createChatButton(
+      `${SCRIPT_CLASS}ChatReverseBtn`,
+      "BBCode \u8F6C Markdown\uFF08\u6709\u9009\u533A\u65F6\u53EA\u8F6C\u6362\u9009\u533A\uFF09",
+      bbcodeIcon
+    );
+    function bindChatButton(button, direction) {
+      button.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (button.classList.contains(`${SCRIPT_CLASS}Loading`)) return;
+        button.classList.add(`${SCRIPT_CLASS}Loading`);
+        try {
+          await convertContentEditable(editor, direction);
+        } catch (error2) {
+          console.error("[md2bbcode] failed to convert chat text", error2);
+        } finally {
+          button.classList.remove(`${SCRIPT_CLASS}Loading`);
+        }
+      });
+    }
+    bindChatButton(convertBtn, "markdown-to-bbcode");
+    bindChatButton(reverseBtn, "bbcode-to-markdown");
+    const sendBtn = actions.querySelector(".send-btn");
+    if (sendBtn) {
+      actions.insertBefore(convertBtn, sendBtn);
+      actions.insertBefore(reverseBtn, sendBtn);
+    } else {
+      actions.append(convertBtn);
+      actions.append(reverseBtn);
+    }
+    editor.dataset.md2bbcodeEnhanced = "true";
   }
   function isEditorTextarea(textarea) {
     if (!textarea || textarea.tagName !== "TEXTAREA") return false;
@@ -6003,31 +6094,74 @@ ${content}
       padding: 0;
       list-style: none;
     }
+    .${SCRIPT_CLASS}ChatBtn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      margin: 0 2px 0 0;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      opacity: .7;
+      transition: opacity .15s ease;
+    }
+    .${SCRIPT_CLASS}ChatBtn:hover {
+      opacity: 1;
+      background: rgba(128,128,128,.15);
+    }
+    .${SCRIPT_CLASS}ChatBtn svg {
+      display: block;
+      width: 18px;
+      height: 18px;
+      pointer-events: none;
+    }
+    .${SCRIPT_CLASS}ChatBtn.${SCRIPT_CLASS}Loading {
+      opacity: .35;
+      pointer-events: none;
+    }
   `;
     document.head.append(style);
   }
   injectStyle();
   enhanceAllEditors();
   var observer = new MutationObserver((mutations) => {
-    var _a2, _b;
+    var _a2, _b, _c, _d;
     let hasNewEditor = false;
+    let hasNewChat = false;
     for (const mutation of mutations) {
       if (mutation.type !== "childList") continue;
       for (const node of mutation.addedNodes) {
         if (node.nodeType !== Node.ELEMENT_NODE) continue;
         if (((_a2 = node.matches) == null ? void 0 : _a2.call(node, ".markItUp, .markItUpHeader")) || ((_b = node.querySelector) == null ? void 0 : _b.call(node, ".markItUp, .markItUpHeader"))) {
           hasNewEditor = true;
-          break;
         }
+        if (((_c = node.matches) == null ? void 0 : _c.call(node, ".chat-textarea.chat-rich-editor")) || ((_d = node.querySelector) == null ? void 0 : _d.call(node, ".chat-textarea.chat-rich-editor"))) {
+          hasNewChat = true;
+        }
+        if (hasNewEditor && hasNewChat) break;
       }
-      if (hasNewEditor) break;
+      if (hasNewEditor && hasNewChat) break;
     }
     if (hasNewEditor) enhanceAllEditors();
+    if (hasNewChat) {
+      document.querySelectorAll(".chat-textarea.chat-rich-editor:not([data-md2bbcode-enhanced])").forEach(addChatConversionButtons);
+    }
   });
   observer.observe(document.body, { childList: true, subtree: true });
   document.addEventListener("focusin", (event) => {
-    if (event.target.tagName !== "TEXTAREA") return;
-    const textarea = event.target;
+    var _a2;
+    const target = event.target;
+    if ((_a2 = target.matches) == null ? void 0 : _a2.call(target, ".chat-textarea.chat-rich-editor")) {
+      addChatConversionButtons(target);
+      return;
+    }
+    if (target.tagName !== "TEXTAREA") return;
+    const textarea = target;
     if (textarea.dataset.md2bbcodeEnhanced === "true" || textarea.closest(".markItUp")) return;
     if (isEditorTextarea(textarea)) {
       setTimeout(() => {

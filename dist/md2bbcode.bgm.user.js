@@ -581,6 +581,54 @@
       dispatchEditorEvents(textarea);
     }
     
+    async function convertContentEditable(editor, direction) {
+      const selection = window.getSelection();
+      let source = '';
+      let hasSelection = false;
+      let range = null;
+    
+      if (selection && selection.rangeCount > 0) {
+        range = selection.getRangeAt(0);
+        // Only use selection if it's inside this editor
+        if (editor.contains(range.commonAncestorContainer)) {
+          hasSelection = !range.collapsed;
+          if (hasSelection) {
+            source = range.toString();
+          }
+        }
+      }
+    
+      if (!hasSelection) {
+        source = editor.innerText;
+      }
+    
+      const converter = direction === 'bbcode-to-markdown'
+        ? md2bbcode.bbcodeToMarkdown
+        : md2bbcode.markdownToBBCode;
+      const converted = await Promise.resolve(converter(source));
+    
+      if (hasSelection && range) {
+        range.deleteContents();
+        range.insertNode(document.createTextNode(converted));
+        // Collapse selection to end of inserted text
+        range.collapse(false);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      } else {
+        editor.innerText = converted;
+      }
+    
+      editor.focus();
+      // Trigger input event on the associated proxy textarea if any
+      const proxy = editor.parentElement?.querySelector('.chat-textarea-proxy');
+      if (proxy) {
+        proxy.value = editor.innerText;
+        dispatchEditorEvents(proxy);
+      }
+      // Also dispatch input on the editor itself for good measure
+      editor.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    
     function createToolbarButton(className, title, icon) {
       const li = document.createElement('li');
       li.className = `markItUpButton tool_ico ${className}`;
@@ -594,6 +642,16 @@
     
       li.append(button);
       return li;
+    }
+    
+    function createChatButton(className, title, icon) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `${SCRIPT_CLASS}ChatBtn ${className}`;
+      button.title = title;
+      button.setAttribute('aria-label', title);
+      button.innerHTML = icon;
+      return button;
     }
     
     function addConversionButtons(toolbar, textarea) {
@@ -637,6 +695,61 @@
         toolbar.append(convertBtn);
         toolbar.append(reverseBtn);
       }
+    }
+    
+    function addChatConversionButtons(editor) {
+      if (editor.dataset.md2bbcodeEnhanced === 'true') return;
+    
+      const wrapper = editor.closest('.dollars-input-wrapper');
+      if (!wrapper) return;
+    
+      // Find the input-actions container next to the wrapper
+      const actions = wrapper.nextElementSibling;
+      if (!actions || !actions.classList?.contains('input-actions')) return;
+      if (actions.querySelector(`.${SCRIPT_CLASS}ChatBtn`)) return;
+    
+      const convertBtn = createChatButton(
+        `${SCRIPT_CLASS}ChatConvertBtn`,
+        'Markdown 转 BBCode（有选区时只转换选区）',
+        markdownIcon
+      );
+      const reverseBtn = createChatButton(
+        `${SCRIPT_CLASS}ChatReverseBtn`,
+        'BBCode 转 Markdown（有选区时只转换选区）',
+        bbcodeIcon
+      );
+    
+      function bindChatButton(button, direction) {
+        button.addEventListener('click', async event => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (button.classList.contains(`${SCRIPT_CLASS}Loading`)) return;
+    
+          button.classList.add(`${SCRIPT_CLASS}Loading`);
+          try {
+            await convertContentEditable(editor, direction);
+          } catch (error) {
+            console.error('[md2bbcode] failed to convert chat text', error);
+          } finally {
+            button.classList.remove(`${SCRIPT_CLASS}Loading`);
+          }
+        });
+      }
+    
+      bindChatButton(convertBtn, 'markdown-to-bbcode');
+      bindChatButton(reverseBtn, 'bbcode-to-markdown');
+    
+      // Insert before the send button (last child)
+      const sendBtn = actions.querySelector('.send-btn');
+      if (sendBtn) {
+        actions.insertBefore(convertBtn, sendBtn);
+        actions.insertBefore(reverseBtn, sendBtn);
+      } else {
+        actions.append(convertBtn);
+        actions.append(reverseBtn);
+      }
+    
+      editor.dataset.md2bbcodeEnhanced = 'true';
     }
     
     // ===== 编辑器识别与定位 =====
@@ -783,6 +896,36 @@
           padding: 0;
           list-style: none;
         }
+        .${SCRIPT_CLASS}ChatBtn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 32px;
+          height: 32px;
+          padding: 0;
+          margin: 0 2px 0 0;
+          border: none;
+          border-radius: 6px;
+          background: transparent;
+          color: inherit;
+          cursor: pointer;
+          opacity: .7;
+          transition: opacity .15s ease;
+        }
+        .${SCRIPT_CLASS}ChatBtn:hover {
+          opacity: 1;
+          background: rgba(128,128,128,.15);
+        }
+        .${SCRIPT_CLASS}ChatBtn svg {
+          display: block;
+          width: 18px;
+          height: 18px;
+          pointer-events: none;
+        }
+        .${SCRIPT_CLASS}ChatBtn.${SCRIPT_CLASS}Loading {
+          opacity: .35;
+          pointer-events: none;
+        }
       `;
       document.head.append(style);
     }
@@ -795,6 +938,7 @@
     // 因此需要监听新增节点，在 .markItUp / .markItUpHeader 出现时进行增强。
     const observer = new MutationObserver(mutations => {
       let hasNewEditor = false;
+      let hasNewChat = false;
       for (const mutation of mutations) {
         if (mutation.type !== 'childList') continue;
         for (const node of mutation.addedNodes) {
@@ -804,12 +948,22 @@
             node.querySelector?.('.markItUp, .markItUpHeader')
           ) {
             hasNewEditor = true;
-            break;
           }
+          if (
+            node.matches?.('.chat-textarea.chat-rich-editor') ||
+            node.querySelector?.('.chat-textarea.chat-rich-editor')
+          ) {
+            hasNewChat = true;
+          }
+          if (hasNewEditor && hasNewChat) break;
         }
-        if (hasNewEditor) break;
+        if (hasNewEditor && hasNewChat) break;
       }
       if (hasNewEditor) enhanceAllEditors();
+      if (hasNewChat) {
+        document.querySelectorAll('.chat-textarea.chat-rich-editor:not([data-md2bbcode-enhanced])')
+          .forEach(addChatConversionButtons);
+      }
     });
     
     observer.observe(document.body, { childList: true, subtree: true });
@@ -818,8 +972,16 @@
     // 对于某些不会自动生成 markItUp 但又需要工具栏的 textarea，
     // 在获得焦点后延迟检查；若 markItUp 仍未出现，则创建自定义工具栏。
     document.addEventListener('focusin', event => {
-      if (event.target.tagName !== 'TEXTAREA') return;
-      const textarea = event.target;
+      const target = event.target;
+    
+      // Handle chat rich editor (contenteditable)
+      if (target.matches?.('.chat-textarea.chat-rich-editor')) {
+        addChatConversionButtons(target);
+        return;
+      }
+    
+      if (target.tagName !== 'TEXTAREA') return;
+      const textarea = target;
       if (textarea.dataset.md2bbcodeEnhanced === 'true' || textarea.closest('.markItUp')) return;
     
       if (isEditorTextarea(textarea)) {
