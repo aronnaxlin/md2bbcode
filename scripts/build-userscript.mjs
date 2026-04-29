@@ -4,7 +4,7 @@ import { build } from 'esbuild';
 const commonHeader = `// ==UserScript==
 // @name         Bangumi Markdown 转 BBCode
 // @namespace    bangumi.md2bbcode
-// @version      0.0.2
+// @version      0.0.3
 // @description  为 Bangumi 编辑器添加 Markdown 转 BBCode
 // @author       you
 // @icon         https://bgm.tv/img/favicon.ico
@@ -47,7 +47,9 @@ const greasyForkCore = core
   .replace('const markdown = new MarkdownIt({', 'const markdown = window.markdownit({')
   .replace('export function markdownToBBCode(source) {', 'function markdownToBBCode(source) {')
   .replace('export function bbcodeToMarkdown(source) {', 'function bbcodeToMarkdown(source) {')
-  .replace('export const md2bbcode = {\n  markdownToBBCode,\n  bbcodeToMarkdown\n};', 'const md2bbcode = {\n  markdownToBBCode,\n  bbcodeToMarkdown\n};');
+  .replace('export function markdownToBBCodeChat(source) {', 'function markdownToBBCodeChat(source) {')
+  .replace('export function bbcodeToMarkdownChat(source) {', 'function bbcodeToMarkdownChat(source) {')
+  .replace('export const md2bbcode = {\n  markdownToBBCode,\n  bbcodeToMarkdown,\n  markdownToBBCodeChat,\n  bbcodeToMarkdownChat\n};', 'const md2bbcode = {\n  markdownToBBCode,\n  bbcodeToMarkdown,\n  markdownToBBCodeChat,\n  bbcodeToMarkdownChat\n};');
 
 const greasyForkApp = app.replace("import { md2bbcode } from '../core/markdown-to-bbcode.js';\n\n", '');
 const bbcodeCoreStart = greasyForkCore.indexOf('const bbcodeTagPattern');
@@ -130,6 +132,12 @@ ${bgmMarkdownCore.split('\n').map(line => `      ${line}`).join('\n')}
     },
     bbcodeToMarkdown(source) {
       return bbcodeToMarkdown(source);
+    },
+    markdownToBBCodeChat(source) {
+      return ensureMarkdownToBBCode().then(() => markdownToBBCodeChat(source));
+    },
+    bbcodeToMarkdownChat(source) {
+      return bbcodeToMarkdownChat(source);
     }
   };
 

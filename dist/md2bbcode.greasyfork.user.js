@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bangumi Markdown 转 BBCode
 // @namespace    bangumi.md2bbcode
-// @version      0.0.2
+// @version      0.0.3
 // @description  为 Bangumi 编辑器添加 Markdown 转 BBCode
 // @author       you
 // @icon         https://bgm.tv/img/favicon.ico
@@ -557,17 +557,17 @@ function markdownToBBCode(source) {
   return normalizeBBCode(markdown.render(preprocessMarkdown(source), { listStack: [] }));
 }
 
-export function bbcodeToMarkdownChat(source) {
+function bbcodeToMarkdownChat(source) {
   if (!source) return '';
   return normalizeMarkdown(renderBBCodeNodeAsMarkdownChat(parseBBCode(String(source))));
 }
 
-export function markdownToBBCodeChat(source) {
+function markdownToBBCodeChat(source) {
   if (!source) return '';
   return normalizeBBCode(chatMarkdown.render(preprocessMarkdown(source)));
 }
 
-export const md2bbcode = {
+const md2bbcode = {
   markdownToBBCode,
   bbcodeToMarkdown,
   markdownToBBCodeChat,
