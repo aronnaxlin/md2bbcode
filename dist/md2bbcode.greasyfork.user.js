@@ -1070,6 +1070,37 @@ function enhanceAllEditors() {
   document.querySelectorAll('.markItUpHeader:not([data-md2bbcode-enhanced])').forEach(enhanceMarkItUpHeader);
 }
 
+function schedulePlainTextareaEnhancement(textarea, delay = 600) {
+  if (!textarea?.isConnected) return;
+  if (textarea.dataset.md2bbcodePlainEnhanceScheduled === 'true') return;
+  if (textarea.dataset.md2bbcodeEnhanced === 'true') return;
+  if (!isEditorTextarea(textarea)) return;
+
+  textarea.dataset.md2bbcodePlainEnhanceScheduled = 'true';
+  setTimeout(() => {
+    delete textarea.dataset.md2bbcodePlainEnhanceScheduled;
+    if (!textarea.isConnected) return;
+    if (!textarea.closest('.markItUp') && textarea.dataset.md2bbcodeEnhanced !== 'true') {
+      enhancePlainTextarea(textarea);
+    }
+  }, delay);
+}
+
+function scanExistingEditors() {
+  enhanceAllEditors();
+
+  document.querySelectorAll('.chat-textarea.chat-rich-editor:not([data-md2bbcode-enhanced])')
+    .forEach(addChatConversionButtons);
+}
+
+function rescanExistingEditorsSoon(retries = 4) {
+  if (retries <= 0) return;
+  setTimeout(() => {
+    scanExistingEditors();
+    rescanExistingEditorsSoon(retries - 1);
+  }, 500);
+}
+
 function injectStyle() {
   const style = document.createElement('style');
   style.textContent = `
@@ -1208,7 +1239,8 @@ function registerConfigPanelWhenReady(retries = 20) {
 
 injectStyle();
 registerConfigPanelWhenReady();
-enhanceAllEditors();
+scanExistingEditors();
+rescanExistingEditorsSoon();
 
 // ===== MutationObserver：监听 markItUp 的动态生成 =====
 // Bangumi 很多编辑器（如回复框）是点击后才由 JS 初始化 markItUp 结构，
@@ -1217,6 +1249,15 @@ const observer = new MutationObserver(mutations => {
   let hasNewEditor = false;
   let hasNewChat = false;
   for (const mutation of mutations) {
+    if (mutation.type === 'attributes') {
+      const node = mutation.target;
+      if (node.nodeType !== Node.ELEMENT_NODE) continue;
+      if (node.matches?.('.markItUp, .markItUpHeader')) hasNewEditor = true;
+      if (node.matches?.('.chat-textarea.chat-rich-editor')) hasNewChat = true;
+      if (hasNewEditor && hasNewChat) break;
+      continue;
+    }
+
     if (mutation.type !== 'childList') continue;
     for (const node of mutation.addedNodes) {
       if (node.nodeType !== Node.ELEMENT_NODE) continue;
@@ -1236,14 +1277,14 @@ const observer = new MutationObserver(mutations => {
     }
     if (hasNewEditor && hasNewChat) break;
   }
-  if (hasNewEditor) enhanceAllEditors();
+  if (hasNewEditor) scanExistingEditors();
   if (hasNewChat) {
     document.querySelectorAll('.chat-textarea.chat-rich-editor:not([data-md2bbcode-enhanced])')
       .forEach(addChatConversionButtons);
   }
 });
 
-observer.observe(document.body, { childList: true, subtree: true });
+observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
 
 // ===== focusin 事件：处理无原生 markItUp 的编辑器 =====
 // 对于某些不会自动生成 markItUp 但又需要工具栏的 textarea，
@@ -1259,16 +1300,15 @@ document.addEventListener('focusin', event => {
 
   if (target.tagName !== 'TEXTAREA') return;
   const textarea = target;
-  if (textarea.dataset.md2bbcodeEnhanced === 'true' || textarea.closest('.markItUp')) return;
+  if (textarea.dataset.md2bbcodeEnhanced === 'true') return;
+  if (textarea.closest('.markItUp')) {
+    enhanceAllEditors();
+    return;
+  }
 
   if (isEditorTextarea(textarea)) {
     // 给 Bangumi 的 markItUp 初始化留出时间窗口
-    setTimeout(() => {
-      if (!textarea.isConnected) return;
-      if (!textarea.closest('.markItUp') && textarea.dataset.md2bbcodeEnhanced !== 'true') {
-        enhancePlainTextarea(textarea);
-      }
-    }, 600);
+    schedulePlainTextareaEnhancement(textarea);
   }
 });
 

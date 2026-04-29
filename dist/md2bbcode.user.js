@@ -6265,6 +6265,31 @@ ${content}
   function enhanceAllEditors() {
     document.querySelectorAll(".markItUpHeader:not([data-md2bbcode-enhanced])").forEach(enhanceMarkItUpHeader);
   }
+  function schedulePlainTextareaEnhancement(textarea, delay = 600) {
+    if (!(textarea == null ? void 0 : textarea.isConnected)) return;
+    if (textarea.dataset.md2bbcodePlainEnhanceScheduled === "true") return;
+    if (textarea.dataset.md2bbcodeEnhanced === "true") return;
+    if (!isEditorTextarea(textarea)) return;
+    textarea.dataset.md2bbcodePlainEnhanceScheduled = "true";
+    setTimeout(() => {
+      delete textarea.dataset.md2bbcodePlainEnhanceScheduled;
+      if (!textarea.isConnected) return;
+      if (!textarea.closest(".markItUp") && textarea.dataset.md2bbcodeEnhanced !== "true") {
+        enhancePlainTextarea(textarea);
+      }
+    }, delay);
+  }
+  function scanExistingEditors() {
+    enhanceAllEditors();
+    document.querySelectorAll(".chat-textarea.chat-rich-editor:not([data-md2bbcode-enhanced])").forEach(addChatConversionButtons);
+  }
+  function rescanExistingEditorsSoon(retries = 4) {
+    if (retries <= 0) return;
+    setTimeout(() => {
+      scanExistingEditors();
+      rescanExistingEditorsSoon(retries - 1);
+    }, 500);
+  }
   function injectStyle() {
     const style = document.createElement("style");
     style.textContent = `
@@ -6397,31 +6422,40 @@ ${content}
   }
   injectStyle();
   registerConfigPanelWhenReady();
-  enhanceAllEditors();
+  scanExistingEditors();
+  rescanExistingEditorsSoon();
   var observer = new MutationObserver((mutations) => {
-    var _a2, _b, _c, _d;
+    var _a2, _b, _c, _d, _e, _f;
     let hasNewEditor = false;
     let hasNewChat = false;
     for (const mutation of mutations) {
+      if (mutation.type === "attributes") {
+        const node = mutation.target;
+        if (node.nodeType !== Node.ELEMENT_NODE) continue;
+        if ((_a2 = node.matches) == null ? void 0 : _a2.call(node, ".markItUp, .markItUpHeader")) hasNewEditor = true;
+        if ((_b = node.matches) == null ? void 0 : _b.call(node, ".chat-textarea.chat-rich-editor")) hasNewChat = true;
+        if (hasNewEditor && hasNewChat) break;
+        continue;
+      }
       if (mutation.type !== "childList") continue;
       for (const node of mutation.addedNodes) {
         if (node.nodeType !== Node.ELEMENT_NODE) continue;
-        if (((_a2 = node.matches) == null ? void 0 : _a2.call(node, ".markItUp, .markItUpHeader")) || ((_b = node.querySelector) == null ? void 0 : _b.call(node, ".markItUp, .markItUpHeader"))) {
+        if (((_c = node.matches) == null ? void 0 : _c.call(node, ".markItUp, .markItUpHeader")) || ((_d = node.querySelector) == null ? void 0 : _d.call(node, ".markItUp, .markItUpHeader"))) {
           hasNewEditor = true;
         }
-        if (((_c = node.matches) == null ? void 0 : _c.call(node, ".chat-textarea.chat-rich-editor")) || ((_d = node.querySelector) == null ? void 0 : _d.call(node, ".chat-textarea.chat-rich-editor"))) {
+        if (((_e = node.matches) == null ? void 0 : _e.call(node, ".chat-textarea.chat-rich-editor")) || ((_f = node.querySelector) == null ? void 0 : _f.call(node, ".chat-textarea.chat-rich-editor"))) {
           hasNewChat = true;
         }
         if (hasNewEditor && hasNewChat) break;
       }
       if (hasNewEditor && hasNewChat) break;
     }
-    if (hasNewEditor) enhanceAllEditors();
+    if (hasNewEditor) scanExistingEditors();
     if (hasNewChat) {
       document.querySelectorAll(".chat-textarea.chat-rich-editor:not([data-md2bbcode-enhanced])").forEach(addChatConversionButtons);
     }
   });
-  observer.observe(document.body, { childList: true, subtree: true });
+  observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
   document.addEventListener("focusin", (event) => {
     var _a2;
     const target = event.target;
@@ -6431,14 +6465,13 @@ ${content}
     }
     if (target.tagName !== "TEXTAREA") return;
     const textarea = target;
-    if (textarea.dataset.md2bbcodeEnhanced === "true" || textarea.closest(".markItUp")) return;
+    if (textarea.dataset.md2bbcodeEnhanced === "true") return;
+    if (textarea.closest(".markItUp")) {
+      enhanceAllEditors();
+      return;
+    }
     if (isEditorTextarea(textarea)) {
-      setTimeout(() => {
-        if (!textarea.isConnected) return;
-        if (!textarea.closest(".markItUp") && textarea.dataset.md2bbcodeEnhanced !== "true") {
-          enhancePlainTextarea(textarea);
-        }
-      }, 600);
+      schedulePlainTextareaEnhancement(textarea);
     }
   });
 })();
