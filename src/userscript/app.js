@@ -93,6 +93,7 @@ async function convertContentEditable(editor, direction, chatMode = false) {
 function createToolbarButton(className, title, icon) {
   const li = document.createElement('li');
   li.className = `markItUpButton tool_ico ${className}`;
+  li.setAttribute('data-md2bbcode-toolbar', 'true');
 
   const button = document.createElement('a');
   button.href = '#';
@@ -117,7 +118,7 @@ function createChatButton(className, title, icon) {
 }
 
 function addConversionButtons(toolbar, textarea) {
-  if (toolbar.querySelector(`.${SCRIPT_CLASS}ConvertBtn`)) return;
+  if (toolbar.querySelector('[data-md2bbcode-toolbar="true"]')) return;
 
   const convertBtn = createToolbarButton(
     `${SCRIPT_CLASS}ConvertBtn`,
@@ -335,16 +336,17 @@ function injectStyle() {
   style.textContent = `
     .${SCRIPT_CLASS}ConvertBtn,
     .${SCRIPT_CLASS}ReverseBtn {
-      width: 28px !important;
+      width: 24px !important;
       height: 24px !important;
       overflow: visible !important;
+      flex-shrink: 0;
     }
     .${SCRIPT_CLASS}ConvertBtn a,
     .${SCRIPT_CLASS}ReverseBtn a {
       display: inline-flex !important;
       align-items: center;
       justify-content: center;
-      width: 28px !important;
+      width: 24px !important;
       height: 24px !important;
       box-sizing: border-box;
       padding: 0 !important;
@@ -358,8 +360,8 @@ function injectStyle() {
     .${SCRIPT_CLASS}ConvertBtn svg,
     .${SCRIPT_CLASS}ReverseBtn svg {
       display: block;
-      width: 19px;
-      height: 19px;
+      width: 16px;
+      height: 16px;
       pointer-events: none;
     }
     .${SCRIPT_CLASS}Loading a {
