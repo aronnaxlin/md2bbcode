@@ -5432,6 +5432,7 @@
   var unsafeProtocol = /^(?:javascript|vbscript|file|data):/i;
   var safeImageDataProtocol = /^data:image\/(?:png|gif|jpeg|webp);/i;
   markdown.validateLink = (url) => !unsafeProtocol.test(url) || safeImageDataProtocol.test(url);
+  markdown.normalizeLink = (url) => url;
   function attr(token, name) {
     const value = token.attrGet(name);
     return value == null ? "" : value;
@@ -5848,6 +5849,7 @@ ${content}
     typographer: false
   });
   chatMarkdown.validateLink = markdown.validateLink;
+  chatMarkdown.normalizeLink = markdown.normalizeLink;
   Object.assign(chatMarkdown.renderer.rules, markdown.renderer.rules);
   chatMarkdown.renderer.rules.paragraph_open = () => "";
   chatMarkdown.renderer.rules.paragraph_close = () => "\n";

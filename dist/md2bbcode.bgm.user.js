@@ -60,6 +60,7 @@
     const safeImageDataProtocol = /^data:image\/(?:png|gif|jpeg|webp);/i;
     
     markdown.validateLink = url => !unsafeProtocol.test(url) || safeImageDataProtocol.test(url);
+    markdown.normalizeLink = url => url;
     
     function attr(token, name) {
       const value = token.attrGet(name);
@@ -567,6 +568,7 @@
     });
     
     chatMarkdown.validateLink = markdown.validateLink;
+    chatMarkdown.normalizeLink = markdown.normalizeLink;
     
     // Copy all renderer rules from the full markdown instance
     Object.assign(chatMarkdown.renderer.rules, markdown.renderer.rules);

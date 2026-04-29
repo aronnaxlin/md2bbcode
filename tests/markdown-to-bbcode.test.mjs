@@ -43,6 +43,16 @@ assert.equal(
 );
 
 assert.equal(
+  markdownToBBCode('[中文](https://example.com/中文/路径?番=1#锚点)'),
+  '[url=https://example.com/中文/路径?番=1#锚点]中文[/url]'
+);
+
+assert.equal(
+  markdownToBBCode('[百分号](https://example.com/100%25?q=50%)'),
+  '[url=https://example.com/100%25?q=50%]百分号[/url]'
+);
+
+assert.equal(
   markdownToBBCode('| A | B |\n| - | - |\n| 中 | 文 |'),
   'A | B |\n中 | 文 |'
 );
@@ -156,4 +166,4 @@ const sampleBBCode = readFileSync(new URL('./fixtures/bangumi-bbcode-sample.txt'
 const sampleMarkdown = readFileSync(new URL('./fixtures/bangumi-bbcode-sample.expected.md', import.meta.url), 'utf8');
 assert.equal(bbcodeToMarkdown(sampleBBCode), sampleMarkdown.trim());
 
-console.log(`ok ${cases.length + reverseCases.length + 25} markdown/bbcode conversion cases`);
+console.log(`ok ${cases.length + reverseCases.length + 27} markdown/bbcode conversion cases`);
