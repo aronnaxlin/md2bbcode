@@ -6129,6 +6129,7 @@ ${content}
       height: 18px;
       pointer-events: none;
       margin: auto;
+      fill: currentColor;
     }
     .${SCRIPT_CLASS}ChatBtn.${SCRIPT_CLASS}Loading {
       opacity: .35;
