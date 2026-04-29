@@ -42,7 +42,7 @@ async function convertSelection(textarea, direction) {
   dispatchEditorEvents(textarea);
 }
 
-async function convertContentEditable(editor, direction) {
+async function convertContentEditable(editor, direction, chatMode = false) {
   const selection = window.getSelection();
   let source = '';
   let hasSelection = false;
@@ -64,8 +64,8 @@ async function convertContentEditable(editor, direction) {
   }
 
   const converter = direction === 'bbcode-to-markdown'
-    ? md2bbcode.bbcodeToMarkdown
-    : md2bbcode.markdownToBBCode;
+    ? (chatMode ? md2bbcode.bbcodeToMarkdownChat : md2bbcode.bbcodeToMarkdown)
+    : (chatMode ? md2bbcode.markdownToBBCodeChat : md2bbcode.markdownToBBCode);
   const converted = await Promise.resolve(converter(source));
 
   if (hasSelection && range) {
@@ -201,7 +201,7 @@ function addChatConversionButtons(editor) {
 
       button.classList.add(`${SCRIPT_CLASS}Loading`);
       try {
-        await convertContentEditable(editor, direction);
+        await convertContentEditable(editor, direction, true);
       } catch (error) {
         console.error('[md2bbcode] failed to convert chat text', error);
       } finally {

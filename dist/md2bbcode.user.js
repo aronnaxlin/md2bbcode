@@ -5798,6 +5798,66 @@ ${content}
   function normalizeMarkdown(value) {
     return value.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   }
+  var chatMarkdown = new lib_default({
+    html: false,
+    linkify: false,
+    breaks: false,
+    typographer: false
+  });
+  chatMarkdown.validateLink = markdown.validateLink;
+  Object.assign(chatMarkdown.renderer.rules, markdown.renderer.rules);
+  chatMarkdown.renderer.rules.paragraph_open = () => "";
+  chatMarkdown.renderer.rules.paragraph_close = () => "\n";
+  chatMarkdown.renderer.rules.heading_open = () => "";
+  chatMarkdown.renderer.rules.heading_close = () => "\n";
+  chatMarkdown.renderer.rules.blockquote_open = () => "";
+  chatMarkdown.renderer.rules.blockquote_close = () => "\n";
+  chatMarkdown.renderer.rules.bullet_list_open = () => "";
+  chatMarkdown.renderer.rules.bullet_list_close = () => "";
+  chatMarkdown.renderer.rules.ordered_list_open = () => "";
+  chatMarkdown.renderer.rules.ordered_list_close = () => "";
+  chatMarkdown.renderer.rules.list_item_open = () => "";
+  chatMarkdown.renderer.rules.list_item_close = () => "\n";
+  chatMarkdown.renderer.rules.hr = () => "";
+  chatMarkdown.renderer.rules.html_block = () => "";
+  chatMarkdown.renderer.rules.html_inline = () => "";
+  chatMarkdown.renderer.rules.image = () => "";
+  chatMarkdown.renderer.rules.table_open = () => "";
+  chatMarkdown.renderer.rules.table_close = () => "";
+  chatMarkdown.renderer.rules.thead_open = () => "";
+  chatMarkdown.renderer.rules.thead_close = () => "";
+  chatMarkdown.renderer.rules.tbody_open = () => "";
+  chatMarkdown.renderer.rules.tbody_close = () => "";
+  chatMarkdown.renderer.rules.tr_open = () => "";
+  chatMarkdown.renderer.rules.tr_close = () => "";
+  chatMarkdown.renderer.rules.th_open = () => "";
+  chatMarkdown.renderer.rules.th_close = () => "";
+  chatMarkdown.renderer.rules.td_open = () => "";
+  chatMarkdown.renderer.rules.td_close = () => "";
+  chatMarkdown.renderer.rules.code_inline = (tokens, index) => `[code]${tokens[index].content}[/code]`;
+  function renderBBCodeNodeAsMarkdownChat(node) {
+    if (node.type === "text") return node.value;
+    if (node.type === "root") return node.children.map(renderBBCodeNodeAsMarkdownChat).join("");
+    const value = node.children.map(renderBBCodeNodeAsMarkdownChat).join("");
+    switch (node.name) {
+      case "b":
+        return wrapMarkdown(value, "**");
+      case "i":
+        return wrapMarkdown(value, "*");
+      case "u":
+        return `<u>${value}</u>`;
+      case "s":
+        return wrapMarkdown(value, "~~");
+      case "url":
+        return renderUrl(value, node.attr);
+      case "code":
+        return renderCodeBlock(value, node.attr);
+      case "mask":
+        return `<mask>${value}</mask>`;
+      default:
+        return serializeBBCodeNode(node);
+    }
+  }
   function bbcodeToMarkdown(source) {
     if (!source) return "";
     return normalizeMarkdown(renderBBCodeNodeAsMarkdown(parseBBCode(String(source))));
@@ -5806,9 +5866,19 @@ ${content}
     if (!source) return "";
     return normalizeBBCode(markdown.render(preprocessMarkdown(source), { listStack: [] }));
   }
+  function bbcodeToMarkdownChat(source) {
+    if (!source) return "";
+    return normalizeMarkdown(renderBBCodeNodeAsMarkdownChat(parseBBCode(String(source))));
+  }
+  function markdownToBBCodeChat(source) {
+    if (!source) return "";
+    return normalizeBBCode(chatMarkdown.render(preprocessMarkdown(source)));
+  }
   var md2bbcode = {
     markdownToBBCode,
-    bbcodeToMarkdown
+    bbcodeToMarkdown,
+    markdownToBBCodeChat,
+    bbcodeToMarkdownChat
   };
 
   // src/userscript/app.js
@@ -5845,7 +5915,7 @@ ${content}
     textarea.focus();
     dispatchEditorEvents(textarea);
   }
-  async function convertContentEditable(editor, direction) {
+  async function convertContentEditable(editor, direction, chatMode = false) {
     var _a2;
     const selection = window.getSelection();
     let source = "";
@@ -5863,7 +5933,7 @@ ${content}
     if (!hasSelection) {
       source = editor.innerText;
     }
-    const converter = direction === "bbcode-to-markdown" ? md2bbcode.bbcodeToMarkdown : md2bbcode.markdownToBBCode;
+    const converter = direction === "bbcode-to-markdown" ? chatMode ? md2bbcode.bbcodeToMarkdownChat : md2bbcode.bbcodeToMarkdown : chatMode ? md2bbcode.markdownToBBCodeChat : md2bbcode.markdownToBBCode;
     const converted = await Promise.resolve(converter(source));
     if (hasSelection && range) {
       range.deleteContents();
@@ -5976,7 +6046,7 @@ ${content}
         if (button.classList.contains(`${SCRIPT_CLASS}Loading`)) return;
         button.classList.add(`${SCRIPT_CLASS}Loading`);
         try {
-          await convertContentEditable(editor, direction);
+          await convertContentEditable(editor, direction, true);
         } catch (error2) {
           console.error("[md2bbcode] failed to convert chat text", error2);
         } finally {
