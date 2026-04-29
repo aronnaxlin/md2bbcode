@@ -5897,16 +5897,54 @@ ${content}
       toolbar.append(reverseBtn);
     }
   }
-  function enhanceEditor(header) {
+  function isEditorTextarea(textarea) {
+    if (!textarea || textarea.tagName !== "TEXTAREA") return false;
+    if (textarea.id === "search_text") return false;
+    if (textarea.closest("#headerSearch")) return false;
+    if (textarea.id === "SayInput") return false;
+    if (textarea.getAttribute("name") === "say_input") return false;
+    if (textarea.closest(".markItUp")) return true;
+    const editorArea = textarea.closest([
+      "#comment_box",
+      ".reply_box",
+      "#post_new",
+      ".topic_reply",
+      ".reply_form",
+      "#new_entry",
+      ".edit_entry",
+      "#entry_content",
+      ".subject_tag_edit",
+      "#subject_summary_form",
+      ".grp_box",
+      "#timeline_form",
+      ".broad",
+      ".blog_entry",
+      ".review_form",
+      ".status",
+      ".tb",
+      ".cmt_form",
+      "#reply_wrapper"
+    ].join(", "));
+    if (editorArea) return true;
+    const name = textarea.getAttribute("name") || "";
+    if (/^(content|msg|comment|reply|post|blog|topic|description|summary|text|body)$/i.test(name)) return true;
+    return false;
+  }
+  function enhanceMarkItUpHeader(header) {
     var _a2;
-    if (header.querySelector(`.${SCRIPT_CLASS}ConvertBtn`)) return;
-    const textarea = (_a2 = header.parentElement) == null ? void 0 : _a2.querySelector("textarea");
-    const toolbar = header.firstElementChild;
+    if (header.dataset.md2bbcodeEnhanced === "true") return;
+    const markItUp = header.closest(".markItUp");
+    const textarea = (markItUp == null ? void 0 : markItUp.querySelector("textarea")) || ((_a2 = header.parentElement) == null ? void 0 : _a2.querySelector("textarea"));
+    const toolbar = header.querySelector("ul") || header.firstElementChild;
     if (!textarea || !toolbar) return;
+    if (!isEditorTextarea(textarea)) return;
+    header.dataset.md2bbcodeEnhanced = "true";
     addConversionButtons(toolbar, textarea);
   }
-  function enhanceTextarea(textarea) {
-    if (textarea.closest(".markItUp") || textarea.dataset.md2bbcodeEnhanced === "true") return;
+  function enhancePlainTextarea(textarea) {
+    if (textarea.dataset.md2bbcodeEnhanced === "true") return;
+    if (textarea.closest(".markItUp")) return;
+    if (!isEditorTextarea(textarea)) return;
     const header = document.createElement("div");
     header.className = `markItUpHeader ${SCRIPT_CLASS}PlainHeader`;
     const toolbar = document.createElement("ul");
@@ -5916,8 +5954,7 @@ ${content}
     addConversionButtons(toolbar, textarea);
   }
   function enhanceAllEditors() {
-    document.querySelectorAll(".markItUpHeader").forEach(enhanceEditor);
-    document.querySelectorAll("textarea").forEach(enhanceTextarea);
+    document.querySelectorAll(".markItUpHeader:not([data-md2bbcode-enhanced])").forEach(enhanceMarkItUpHeader);
   }
   function injectStyle() {
     const style = document.createElement("style");
@@ -5942,20 +5979,13 @@ ${content}
       overflow: visible !important;
       text-indent: 0 !important;
       background-image: none !important;
-      color: #9a9a9a;
-      filter: none !important;
       opacity: 1;
-    }
-    .${SCRIPT_CLASS}ConvertBtn a:hover,
-    .${SCRIPT_CLASS}ReverseBtn a:hover {
-      color: #cfcfcf;
     }
     .${SCRIPT_CLASS}ConvertBtn svg,
     .${SCRIPT_CLASS}ReverseBtn svg {
       display: block;
       width: 19px;
       height: 19px;
-      fill: currentColor;
       pointer-events: none;
     }
     .${SCRIPT_CLASS}Loading a {
@@ -5978,5 +6008,33 @@ ${content}
   }
   injectStyle();
   enhanceAllEditors();
-  new MutationObserver(enhanceAllEditors).observe(document.body, { childList: true, subtree: true });
+  var observer = new MutationObserver((mutations) => {
+    var _a2, _b;
+    let hasNewEditor = false;
+    for (const mutation of mutations) {
+      if (mutation.type !== "childList") continue;
+      for (const node of mutation.addedNodes) {
+        if (node.nodeType !== Node.ELEMENT_NODE) continue;
+        if (((_a2 = node.matches) == null ? void 0 : _a2.call(node, ".markItUp, .markItUpHeader")) || ((_b = node.querySelector) == null ? void 0 : _b.call(node, ".markItUp, .markItUpHeader"))) {
+          hasNewEditor = true;
+          break;
+        }
+      }
+      if (hasNewEditor) break;
+    }
+    if (hasNewEditor) enhanceAllEditors();
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+  document.addEventListener("focusin", (event) => {
+    if (event.target.tagName !== "TEXTAREA") return;
+    const textarea = event.target;
+    if (textarea.dataset.md2bbcodeEnhanced === "true" || textarea.closest(".markItUp")) return;
+    if (isEditorTextarea(textarea)) {
+      setTimeout(() => {
+        if (!textarea.closest(".markItUp") && textarea.dataset.md2bbcodeEnhanced !== "true") {
+          enhancePlainTextarea(textarea);
+        }
+      }, 600);
+    }
+  });
 })();

@@ -100,18 +100,84 @@ function addConversionButtons(toolbar, textarea) {
   }
 }
 
-function enhanceEditor(header) {
-  if (header.querySelector(`.${SCRIPT_CLASS}ConvertBtn`)) return;
+// ===== 编辑器识别与定位 =====
 
-  const textarea = header.parentElement?.querySelector('textarea');
-  const toolbar = header.firstElementChild;
+/**
+ * 判断一个 textarea 是否处于需要 Markdown/BBCode 转换工具栏的编辑器上下文。
+ * 用于区分 Bangumi 上真正需要增强的编辑框与搜索框、私信框等不需要的 textarea。
+ */
+function isEditorTextarea(textarea) {
+  if (!textarea || textarea.tagName !== 'TEXTAREA') return false;
+
+  // 1. 排除搜索框
+  if (textarea.id === 'search_text') return false;
+  if (textarea.closest('#headerSearch')) return false;
+
+  // 2. 排除主页 timeline 吐槽框（有 markItUp 但不支持完整 BBCode）
+  if (textarea.id === 'SayInput') return false;
+  if (textarea.getAttribute('name') === 'say_input') return false;
+
+  // 4. 如果已经在 markItUp 容器内，说明是 Bangumi 的 BBCode 编辑器
+  if (textarea.closest('.markItUp')) return true;
+
+  // 4. 根据所在的已知编辑区域判断
+  const editorArea = textarea.closest([
+    '#comment_box',
+    '.reply_box',
+    '#post_new',
+    '.topic_reply',
+    '.reply_form',
+    '#new_entry',
+    '.edit_entry',
+    '#entry_content',
+    '.subject_tag_edit',
+    '#subject_summary_form',
+    '.grp_box',
+    '#timeline_form',
+    '.broad',
+    '.blog_entry',
+    '.review_form',
+    '.status',
+    '.tb',
+    '.cmt_form',
+    '#reply_wrapper'
+  ].join(', '));
+  if (editorArea) return true;
+
+  // 5. 根据 name 属性判断常见编辑字段
+  const name = textarea.getAttribute('name') || '';
+  if (/^(content|msg|comment|reply|post|blog|topic|description|summary|text|body)$/i.test(name)) return true;
+
+  return false;
+}
+
+/**
+ * 增强已有的 markItUp 工具栏。
+ * Bangumi 的编辑器在点击后才会动态生成 .markItUp 结构，
+ * 因此通过 MutationObserver 在 .markItUpHeader 出现时调用本函数。
+ */
+function enhanceMarkItUpHeader(header) {
+  if (header.dataset.md2bbcodeEnhanced === 'true') return;
+
+  const markItUp = header.closest('.markItUp');
+  const textarea = markItUp?.querySelector('textarea') || header.parentElement?.querySelector('textarea');
+  const toolbar = header.querySelector('ul') || header.firstElementChild;
+
   if (!textarea || !toolbar) return;
+  if (!isEditorTextarea(textarea)) return;
 
+  header.dataset.md2bbcodeEnhanced = 'true';
   addConversionButtons(toolbar, textarea);
 }
 
-function enhanceTextarea(textarea) {
-  if (textarea.closest('.markItUp') || textarea.dataset.md2bbcodeEnhanced === 'true') return;
+/**
+ * 为没有原生 markItUp 的 textarea 创建自定义工具栏。
+ * 仅在确认该 textarea 确实需要工具栏、且不会被 Bangumi 动态初始化 markItUp 时使用。
+ */
+function enhancePlainTextarea(textarea) {
+  if (textarea.dataset.md2bbcodeEnhanced === 'true') return;
+  if (textarea.closest('.markItUp')) return;
+  if (!isEditorTextarea(textarea)) return;
 
   const header = document.createElement('div');
   header.className = `markItUpHeader ${SCRIPT_CLASS}PlainHeader`;
@@ -124,9 +190,11 @@ function enhanceTextarea(textarea) {
   addConversionButtons(toolbar, textarea);
 }
 
+/**
+ * 扫描并增强页面上所有已有的 markItUpHeader。
+ */
 function enhanceAllEditors() {
-  document.querySelectorAll('.markItUpHeader').forEach(enhanceEditor);
-  document.querySelectorAll('textarea').forEach(enhanceTextarea);
+  document.querySelectorAll('.markItUpHeader:not([data-md2bbcode-enhanced])').forEach(enhanceMarkItUpHeader);
 }
 
 function injectStyle() {
@@ -152,20 +220,13 @@ function injectStyle() {
       overflow: visible !important;
       text-indent: 0 !important;
       background-image: none !important;
-      color: #9a9a9a;
-      filter: none !important;
       opacity: 1;
-    }
-    .${SCRIPT_CLASS}ConvertBtn a:hover,
-    .${SCRIPT_CLASS}ReverseBtn a:hover {
-      color: #cfcfcf;
     }
     .${SCRIPT_CLASS}ConvertBtn svg,
     .${SCRIPT_CLASS}ReverseBtn svg {
       display: block;
       width: 19px;
       height: 19px;
-      fill: currentColor;
       pointer-events: none;
     }
     .${SCRIPT_CLASS}Loading a {
@@ -190,4 +251,44 @@ function injectStyle() {
 injectStyle();
 enhanceAllEditors();
 
-new MutationObserver(enhanceAllEditors).observe(document.body, { childList: true, subtree: true });
+// ===== MutationObserver：监听 markItUp 的动态生成 =====
+// Bangumi 很多编辑器（如回复框）是点击后才由 JS 初始化 markItUp 结构，
+// 因此需要监听新增节点，在 .markItUp / .markItUpHeader 出现时进行增强。
+const observer = new MutationObserver(mutations => {
+  let hasNewEditor = false;
+  for (const mutation of mutations) {
+    if (mutation.type !== 'childList') continue;
+    for (const node of mutation.addedNodes) {
+      if (node.nodeType !== Node.ELEMENT_NODE) continue;
+      if (
+        node.matches?.('.markItUp, .markItUpHeader') ||
+        node.querySelector?.('.markItUp, .markItUpHeader')
+      ) {
+        hasNewEditor = true;
+        break;
+      }
+    }
+    if (hasNewEditor) break;
+  }
+  if (hasNewEditor) enhanceAllEditors();
+});
+
+observer.observe(document.body, { childList: true, subtree: true });
+
+// ===== focusin 事件：处理无原生 markItUp 的编辑器 =====
+// 对于某些不会自动生成 markItUp 但又需要工具栏的 textarea，
+// 在获得焦点后延迟检查；若 markItUp 仍未出现，则创建自定义工具栏。
+document.addEventListener('focusin', event => {
+  if (event.target.tagName !== 'TEXTAREA') return;
+  const textarea = event.target;
+  if (textarea.dataset.md2bbcodeEnhanced === 'true' || textarea.closest('.markItUp')) return;
+
+  if (isEditorTextarea(textarea)) {
+    // 给 Bangumi 的 markItUp 初始化留出时间窗口
+    setTimeout(() => {
+      if (!textarea.closest('.markItUp') && textarea.dataset.md2bbcodeEnhanced !== 'true') {
+        enhancePlainTextarea(textarea);
+      }
+    }, 600);
+  }
+});
