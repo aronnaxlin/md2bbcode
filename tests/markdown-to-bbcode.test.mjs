@@ -108,6 +108,7 @@ const reverseCases = [
   ['[url=https://bangumi.tv]Bangumi[/url]', '[Bangumi](https://bangumi.tv)'],
   ['[url]https://bangumi.tv[/url]', '[https://bangumi.tv](https://bangumi.tv)'],
   ['[img]https://example.com/a.png[/img]', '![](https://example.com/a.png)'],
+  ['[img=320,240]https://example.com/a.png[/img]', '<img src="https://example.com/a.png" width="320" height="240" />'],
   ['[quote]引用\n第二行[/quote]', '> 引用\n> 第二行'],
   ['[code]const a = 1;[/code]', '```\nconst a = 1;\n```'],
   ['[mask]隐藏[/mask]', '<mask>隐藏</mask>'],
@@ -161,6 +162,16 @@ assert.equal(
 );
 
 assert.equal(
+  markdownToBBCode('<img src="https://example.com/a.png" width="320" height="240" />'),
+  '[img=320,240]https://example.com/a.png[/img]'
+);
+
+assert.equal(
+  markdownToBBCode('<img src="https://example.com/a.png" />'),
+  '[img]https://example.com/a.png[/img]'
+);
+
+assert.equal(
   markdownToBBCodeChat('**粗体** [链接](https://bangumi.tv) ![图](https://example.com/a.png)'),
   '[b]粗体[/b] [url=https://bangumi.tv]链接[/url] ![图](https://example.com/a.png)'
 );
@@ -174,4 +185,4 @@ const sampleBBCode = readFileSync(new URL('./fixtures/bangumi-bbcode-sample.txt'
 const sampleMarkdown = readFileSync(new URL('./fixtures/bangumi-bbcode-sample.expected.md', import.meta.url), 'utf8');
 assert.equal(bbcodeToMarkdown(sampleBBCode), sampleMarkdown.trim());
 
-console.log(`ok ${cases.length + reverseCases.length + 33} markdown/bbcode conversion cases`);
+console.log(`ok ${cases.length + reverseCases.length + 36} markdown/bbcode conversion cases`);

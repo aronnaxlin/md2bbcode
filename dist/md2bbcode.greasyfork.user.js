@@ -65,6 +65,31 @@ function compactDetailsBody(value) {
     .trim();
 }
 
+function parseHtmlAttribute(source, name) {
+  const match = new RegExp(`${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))`, 'i').exec(source);
+  return match?.[1] ?? match?.[2] ?? match?.[3] ?? '';
+}
+
+function parseImageSizeAttr(value) {
+  const match = /^\s*(\d+)\s*,\s*(\d+)\s*$/.exec(stripWrappingQuotes(value));
+  if (!match) return null;
+
+  const width = Number.parseInt(match[1], 10);
+  const height = Number.parseInt(match[2], 10);
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) return null;
+
+  return { width, height };
+}
+
+function protectPreprocessedBBCode(protectedSnippets, value) {
+  protectedSnippets.push(value);
+  return `MD2BBCODE_PLACEHOLDER_${protectedSnippets.length - 1}_TOKEN`;
+}
+
+function restorePreprocessedBBCode(value, protectedSnippets) {
+  return String(value).replace(/MD2BBCODE_PLACEHOLDER_(\d+)_TOKEN/g, (_match, index) => protectedSnippets[Number(index)] || '');
+}
+
 function replaceInnermostTag(source, openTag, closeTag, processor) {
   let result = source;
   while (true) {
@@ -98,8 +123,22 @@ function replaceInnermostTag(source, openTag, closeTag, processor) {
 }
 
 function preprocessMarkdown(source) {
+  const protectedSnippets = [];
   let result = String(source)
     .replace(/<!--[\s\S]*?-->/g, '');
+
+  result = result.replace(/<img\b[^>]*>/gi, fullMatch => {
+    const src = parseHtmlAttribute(fullMatch, 'src').trim();
+    if (!src || !isSafeImage(src)) return fullMatch;
+
+    const width = parseHtmlAttribute(fullMatch, 'width').trim();
+    const height = parseHtmlAttribute(fullMatch, 'height').trim();
+    if (/^\d+$/.test(width) && /^\d+$/.test(height)) {
+      return protectPreprocessedBBCode(protectedSnippets, `[img=${width},${height}]${src}[/img]`);
+    }
+
+    return protectPreprocessedBBCode(protectedSnippets, `[img]${src}[/img]`);
+  });
 
   // Process nested <details> from innermost to outermost
   result = replaceInnermostTag(result, '<details', '</details>', (fullMatch) => {
@@ -136,11 +175,14 @@ function preprocessMarkdown(source) {
     return value;
   });
 
-  return result
+  return {
+    text: result
     .replace(/<div\s+align=(["']?)(left|center|right)\1\s*>([\s\S]*?)<\/div>/gi, '[$2]$3[/$2]')
     .replace(/<spoiler>([\s\S]*?)<\/spoiler>/gi, '[mask]$1[/mask]')
     .replace(/<mask>([\s\S]*?)<\/mask>/gi, '[mask]$1[/mask]')
-    .replace(/<u>([\s\S]*?)<\/u>/gi, '[u]$1[/u]');
+    .replace(/<u>([\s\S]*?)<\/u>/gi, '[u]$1[/u]'),
+    protectedSnippets
+  };
 }
 
 markdown.renderer.rules.text = (tokens, index) => tokens[index].content;
@@ -388,10 +430,15 @@ function renderUrl(value, attr) {
   return destination ? `[${escapeMarkdownLinkLabel(value)}](${destination})` : value;
 }
 
-function renderImage(value) {
+function renderImage(node, value) {
   const src = value.trim();
   const destination = formatMarkdownDestination(src);
-  return destination ? `![](${destination})` : '';
+  if (!destination) return '';
+
+  const size = parseImageSizeAttr(node.attr);
+  if (!size) return `![](${destination})`;
+
+  return `<img src="${escapeHtmlAttribute(src)}" width="${size.width}" height="${size.height}" />`;
 }
 
 function renderHeadingSize(node, value) {
@@ -492,7 +539,7 @@ function renderBBCodeNodeAsMarkdown(node) {
     case 'email':
       return renderUrl(value, `mailto:${node.attr || value.trim()}`);
     case 'img':
-      return renderImage(value);
+      return renderImage(node, value);
     case 'quote':
       return renderQuote(value, node.attr);
     case 'code':
@@ -694,7 +741,9 @@ function bbcodeToMarkdown(source) {
 
 function markdownToBBCode(source) {
   if (!source) return '';
-  return normalizeBBCode(markdown.render(preprocessMarkdown(source), { listStack: [] }));
+  const preprocessed = preprocessMarkdown(source);
+  const rendered = markdown.render(preprocessed.text, { listStack: [] });
+  return normalizeBBCode(restorePreprocessedBBCode(rendered, preprocessed.protectedSnippets));
 }
 
 function bbcodeToMarkdownChat(source) {
@@ -704,7 +753,9 @@ function bbcodeToMarkdownChat(source) {
 
 function markdownToBBCodeChat(source) {
   if (!source) return '';
-  return normalizeBBCode(chatMarkdown.render(preprocessMarkdown(source)));
+  const preprocessed = preprocessMarkdown(source);
+  const rendered = chatMarkdown.render(preprocessed.text);
+  return normalizeBBCode(restorePreprocessedBBCode(rendered, preprocessed.protectedSnippets));
 }
 
 const md2bbcode = {
