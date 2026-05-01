@@ -25,26 +25,26 @@
 
 转换前
 
-![转换前](./docs/images/demo_markdown_origin.png)
+![转换前](docs/images/demo_markdown_origin.png)
 
 转换后
 
-![转换后](./docs/images/demo_preview.png)
+![转换后](docs/images/demo_preview.png)
 
 ### BBCode 转 Markdown
 
 转换前
 
 
-![转换前](./docs/images/demo_bbcode_origin.png)
+![转换前](docs/images/demo_bbcode_origin.png)
 
 转换后
 
-![转换后](./docs/images/demo_preview2.png)
+![转换后](docs/images/demo_preview2.png)
 
 ### 超合金组件选单
 
-![转换后](./docs/images/demo_menu.png)
+![转换后](docs/images/demo_menu.png)
 
 
 同时支持 BBCode 与 Markdown 混排，发送前监测等功能！
