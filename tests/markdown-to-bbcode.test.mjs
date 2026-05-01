@@ -20,7 +20,7 @@ const cases = [
   ['~~删除~~', '[s]删除[/s]'],
   ['[Bangumi](https://bangumi.tv)', '[url=https://bangumi.tv]Bangumi[/url]'],
   ['![alt](https://example.com/a.png)', '[img]https://example.com/a.png[/img]'],
-  ['`const a = 1`', '[size=12][color=#666]const a = 1[/color][/size]'],
+  ['`const a = 1`', '[size=12][color=#333]const a = 1[/color][/size]'],
   ['# 标题', '[b][size=24]标题[/size][/b]'],
   ['> 引用\n> 第二行', '[quote]引用\n第二行[/quote]'],
   ['- 项目', '* 项目'],
@@ -120,7 +120,7 @@ const reverseCases = [
   ['[code]const a = 1;[/code]', '```\nconst a = 1;\n```'],
   ['[mask]隐藏[/mask]', '<mask>隐藏</mask>'],
   ['[b][size=24]标题[/size][/b]', '# 标题'],
-  ['[size=12][color=#666]const a = 1[/color][/size]', '`const a = 1`'],
+  ['[size=12][color=#333]const a = 1[/color][/size]', '`const a = 1`'],
   ['[color=red]红色[/color]', '<span style="color: red">红色</span>'],
   ['[size=18]大字[/size]', '<span style="font-size: 18px">大字</span>'],
   ['[font=serif]衬线[/font]', '[font=serif]衬线[/font]'],
@@ -135,6 +135,11 @@ const reverseCases = [
 for (const [input, expected] of reverseCases) {
   assert.equal(bbcodeToMarkdown(input), expected, input);
 }
+
+assert.equal(
+  bbcodeToMarkdown('[size=12][color=#666]const a = 1[/color][/size]'),
+  '`const a = 1`'
+);
 
 assert.equal(
   bbcodeToMarkdown('[b][url=https://bangumi.tv]链接[/url][/b]'),
@@ -205,7 +210,7 @@ assert.equal(
 
 assert.equal(
   markdownToBBCode('`[img]https://example.com/a.png[/img]`'),
-  '[size=12][color=#666][img]https://example.com/a.png[/img][/color][/size]'
+  '[size=12][color=#333][img]https://example.com/a.png[/img][/color][/size]'
 );
 
 assert.equal(
@@ -268,4 +273,4 @@ const mixedBBCodeProtection = readFixture('mixed-bbcode-code-protection.txt');
 const mixedBBCodeProtectionExpected = readFixture('mixed-bbcode-code-protection.expected.md');
 assert.equal(bbcodeToMarkdown(mixedBBCodeProtection), mixedBBCodeProtectionExpected.trim());
 
-console.log(`ok ${cases.length + reverseCases.length + 56} markdown/bbcode conversion cases`);
+console.log(`ok ${cases.length + reverseCases.length + 57} markdown/bbcode conversion cases`);

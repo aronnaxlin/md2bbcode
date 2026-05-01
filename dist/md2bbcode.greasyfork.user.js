@@ -112,6 +112,7 @@ const unsafeProtocol = /^(?:javascript|vbscript|file|data):/i;
 const safeImageDataProtocol = /^data:image\/(?:png|gif|jpeg|webp);/i;
 const knownBBCodePattern = new RegExp(`\\[(?:\\/?(?:${protectableBBCodeTags.join('|')}|\\*)|(?:${knownBBCodeAttrTags.join('|')})=[^\\]]+)\\]`, 'i');
 const knownBBCodeGlobalPattern = new RegExp(knownBBCodePattern.source, 'gi');
+const inlineCodeColor = '#333';
 
 markdown.validateLink = url => !unsafeProtocol.test(url) || safeImageDataProtocol.test(url);
 markdown.normalizeLink = url => url;
@@ -294,7 +295,7 @@ function preprocessMarkdown(source) {
 }
 
 markdown.renderer.rules.text = (tokens, index) => tokens[index].content;
-markdown.renderer.rules.code_inline = (tokens, index) => `[size=12][color=#666]${tokens[index].content}[/color][/size]`;
+markdown.renderer.rules.code_inline = (tokens, index) => `[size=12][color=${inlineCodeColor}]${tokens[index].content}[/color][/size]`;
 markdown.renderer.rules.code_block = (tokens, index) => `[code]${tokens[index].content.replace(/\n$/, '')}[/code]\n\n`;
 markdown.renderer.rules.fence = markdown.renderer.rules.code_block;
 markdown.renderer.rules.softbreak = () => '\n';
@@ -562,11 +563,15 @@ function renderHeadingSize(node, value) {
   return marker ? `${marker} ${value.trim()}` : '';
 }
 
+function isInlineCodeColor(value) {
+  const normalized = stripWrappingQuotes(value).toLowerCase();
+  return normalized === '#333' || normalized === '#333333' || normalized === '#666' || normalized === '#666666';
+}
+
 function renderSize(node, value) {
   const size = stripWrappingQuotes(node.attr);
   if (size === '12' && node.children.length === 1 && node.children[0].type === 'tag' && node.children[0].name === 'color') {
-    const color = stripWrappingQuotes(node.children[0].attr).toLowerCase();
-    if (color === '#666' || color === '#666666') {
+    if (isInlineCodeColor(node.children[0].attr)) {
       return `\`${renderChildrenAsMarkdown(node.children[0].children)}\``;
     }
   }
@@ -576,8 +581,7 @@ function renderSize(node, value) {
 
 function renderColor(node, value) {
   const color = stripWrappingQuotes(node.attr);
-  const normalized = color.toLowerCase();
-  if (normalized === '#666' || normalized === '#666666') {
+  if (isInlineCodeColor(color)) {
     return `\`${value}\``;
   }
   return color ? `<span style="color: ${escapeHtmlAttribute(color)}">${value}</span>` : value;
@@ -1533,6 +1537,22 @@ function injectStyle() {
     .${SCRIPT_CLASS}ChatBtn.${SCRIPT_CLASS}Loading {
       opacity: .35;
       pointer-events: none;
+    }
+    .codeHighlight pre,
+    .codeHighlight code {
+      color: #222 !important;
+    }
+    .codeHighlight {
+      background: #f7f7f7 !important;
+      border-color: #d8d8d8 !important;
+    }
+    html[data-theme="dark"] .codeHighlight pre,
+    html[data-theme="dark"] .codeHighlight code {
+      color: #e8e8e8 !important;
+    }
+    html[data-theme="dark"] .codeHighlight {
+      background: #242628 !important;
+      border-color: #555 !important;
     }
   `;
   document.head.append(style);
