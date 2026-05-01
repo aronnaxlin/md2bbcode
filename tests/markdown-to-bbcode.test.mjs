@@ -101,6 +101,8 @@ assert.equal(looksLikeMarkdown('## 标题\n\n- 第一项\n- 第二项'), true);
 assert.equal(looksLikeMarkdown('[链接](https://bangumi.tv)'), true);
 assert.equal(looksLikeMarkdown('这里有 `inline code`。'), true);
 assert.equal(looksLikeMarkdown('[b]已经是 BBCode[/b]'), false);
+assert.equal(looksLikeMarkdown('[img]https://example.com/a.png[/img] 和 **Markdown 粗体**'), true);
+assert.equal(looksLikeMarkdown('[code]**代码里的星号不算 Markdown**[/code]'), false);
 assert.equal(looksLikeMarkdown('普通中文句子，没有任何格式。'), false);
 assert.equal(looksLikeMarkdown('https://bangumi.tv 只是一个裸链接'), false);
 
@@ -266,4 +268,4 @@ const mixedBBCodeProtection = readFixture('mixed-bbcode-code-protection.txt');
 const mixedBBCodeProtectionExpected = readFixture('mixed-bbcode-code-protection.expected.md');
 assert.equal(bbcodeToMarkdown(mixedBBCodeProtection), mixedBBCodeProtectionExpected.trim());
 
-console.log(`ok ${cases.length + reverseCases.length + 54} markdown/bbcode conversion cases`);
+console.log(`ok ${cases.length + reverseCases.length + 56} markdown/bbcode conversion cases`);

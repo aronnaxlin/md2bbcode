@@ -54,6 +54,7 @@ const knownBBCodeAttrTags = [
 const unsafeProtocol = /^(?:javascript|vbscript|file|data):/i;
 const safeImageDataProtocol = /^data:image\/(?:png|gif|jpeg|webp);/i;
 const knownBBCodePattern = new RegExp(`\\[(?:\\/?(?:${protectableBBCodeTags.join('|')}|\\*)|(?:${knownBBCodeAttrTags.join('|')})=[^\\]]+)\\]`, 'i');
+const knownBBCodeGlobalPattern = new RegExp(knownBBCodePattern.source, 'gi');
 
 markdown.validateLink = url => !unsafeProtocol.test(url) || safeImageDataProtocol.test(url);
 markdown.normalizeLink = url => url;
@@ -659,10 +660,16 @@ function scoreMarkdownInlineChildren(children) {
   return score;
 }
 
+function removeKnownBBCodeForDetection(source) {
+  const protectedSnippets = [];
+  return protectExistingBBCode(String(source), protectedSnippets)
+    .replace(knownBBCodeGlobalPattern, ' ')
+    .replace(/MD2BBCODE_PLACEHOLDER_\d+_TOKEN/g, ' ');
+}
+
 export function looksLikeMarkdown(source) {
-  const text = String(source || '').trim();
+  const text = removeKnownBBCodeForDetection(source).trim();
   if (!text || text.length < 6) return false;
-  if (knownBBCodePattern.test(text)) return false;
 
   const tokens = markdownDetector.parse(text, {});
   let score = 0;
