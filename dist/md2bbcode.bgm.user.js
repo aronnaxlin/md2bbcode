@@ -143,7 +143,7 @@
     const safeImageDataProtocol = /^data:image\/(?:png|gif|jpeg|webp);/i;
     const knownBBCodePattern = new RegExp(`\\[(?:\\/?(?:${protectableBBCodeTags.join('|')}|\\*)|(?:${knownBBCodeAttrTags.join('|')})=[^\\]]+)\\]`, 'i');
     const knownBBCodeGlobalPattern = new RegExp(knownBBCodePattern.source, 'gi');
-    const inlineCodeColor = '#333';
+    const inlineCodeSize = '12';
     
     markdown.validateLink = url => !unsafeProtocol.test(url) || safeImageDataProtocol.test(url);
     markdown.normalizeLink = url => url;
@@ -326,7 +326,7 @@
     }
     
     markdown.renderer.rules.text = (tokens, index) => tokens[index].content;
-    markdown.renderer.rules.code_inline = (tokens, index) => `[size=12][color=${inlineCodeColor}]${tokens[index].content}[/color][/size]`;
+    markdown.renderer.rules.code_inline = (tokens, index) => `[size=${inlineCodeSize}]${tokens[index].content}[/size]`;
     markdown.renderer.rules.code_block = (tokens, index) => `[code]${tokens[index].content.replace(/\n$/, '')}[/code]\n\n`;
     markdown.renderer.rules.fence = markdown.renderer.rules.code_block;
     markdown.renderer.rules.softbreak = () => '\n';
@@ -601,9 +601,14 @@
     
     function renderSize(node, value) {
       const size = stripWrappingQuotes(node.attr);
-      if (size === '12' && node.children.length === 1 && node.children[0].type === 'tag' && node.children[0].name === 'color') {
-        if (isInlineCodeColor(node.children[0].attr)) {
-          return `\`${renderChildrenAsMarkdown(node.children[0].children)}\``;
+      if (size === inlineCodeSize) {
+        if (node.children.length === 1 && node.children[0].type === 'tag' && node.children[0].name === 'color') {
+          if (isInlineCodeColor(node.children[0].attr)) {
+            return `\`${renderChildrenAsMarkdown(node.children[0].children)}\``;
+          }
+        }
+        if (node.children.length === 1 && node.children[0].type === 'text') {
+          return `\`${node.children[0].value}\``;
         }
       }
     
@@ -1569,21 +1574,9 @@
           opacity: .35;
           pointer-events: none;
         }
-        .codeHighlight pre,
-        .codeHighlight code {
-          color: #222 !important;
-        }
         .codeHighlight {
-          background: #f7f7f7 !important;
-          border-color: #d8d8d8 !important;
-        }
-        html[data-theme="dark"] .codeHighlight pre,
-        html[data-theme="dark"] .codeHighlight code {
-          color: #e8e8e8 !important;
-        }
-        html[data-theme="dark"] .codeHighlight {
-          background: #242628 !important;
-          border-color: #555 !important;
+          background: rgba(127, 127, 127, .08) !important;
+          border-color: rgba(127, 127, 127, .28) !important;
         }
       `;
       document.head.append(style);

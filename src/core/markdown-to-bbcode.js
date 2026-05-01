@@ -55,7 +55,7 @@ const unsafeProtocol = /^(?:javascript|vbscript|file|data):/i;
 const safeImageDataProtocol = /^data:image\/(?:png|gif|jpeg|webp);/i;
 const knownBBCodePattern = new RegExp(`\\[(?:\\/?(?:${protectableBBCodeTags.join('|')}|\\*)|(?:${knownBBCodeAttrTags.join('|')})=[^\\]]+)\\]`, 'i');
 const knownBBCodeGlobalPattern = new RegExp(knownBBCodePattern.source, 'gi');
-const inlineCodeColor = '#333';
+const inlineCodeSize = '12';
 
 markdown.validateLink = url => !unsafeProtocol.test(url) || safeImageDataProtocol.test(url);
 markdown.normalizeLink = url => url;
@@ -238,7 +238,7 @@ function preprocessMarkdown(source) {
 }
 
 markdown.renderer.rules.text = (tokens, index) => tokens[index].content;
-markdown.renderer.rules.code_inline = (tokens, index) => `[size=12][color=${inlineCodeColor}]${tokens[index].content}[/color][/size]`;
+markdown.renderer.rules.code_inline = (tokens, index) => `[size=${inlineCodeSize}]${tokens[index].content}[/size]`;
 markdown.renderer.rules.code_block = (tokens, index) => `[code]${tokens[index].content.replace(/\n$/, '')}[/code]\n\n`;
 markdown.renderer.rules.fence = markdown.renderer.rules.code_block;
 markdown.renderer.rules.softbreak = () => '\n';
@@ -513,9 +513,14 @@ function isInlineCodeColor(value) {
 
 function renderSize(node, value) {
   const size = stripWrappingQuotes(node.attr);
-  if (size === '12' && node.children.length === 1 && node.children[0].type === 'tag' && node.children[0].name === 'color') {
-    if (isInlineCodeColor(node.children[0].attr)) {
-      return `\`${renderChildrenAsMarkdown(node.children[0].children)}\``;
+  if (size === inlineCodeSize) {
+    if (node.children.length === 1 && node.children[0].type === 'tag' && node.children[0].name === 'color') {
+      if (isInlineCodeColor(node.children[0].attr)) {
+        return `\`${renderChildrenAsMarkdown(node.children[0].children)}\``;
+      }
+    }
+    if (node.children.length === 1 && node.children[0].type === 'text') {
+      return `\`${node.children[0].value}\``;
     }
   }
 

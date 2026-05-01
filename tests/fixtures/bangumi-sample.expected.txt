@@ -1,6 +1,6 @@
 [b][size=24]Markdown 转 BBCode 测试日志[/size][/b]
 
-这是一段中文正文，包含 [b]粗体[/b]、[i]斜体[/i]、[s]删除线[/s]，以及 [size=12][color=#333]inline code[/color][/size]。
+这是一段中文正文，包含 [b]粗体[/b]、[i]斜体[/i]、[s]删除线[/s]，以及 [size=12]inline code[/size]。
 
 也测试一下中文紧贴格式：这是[b]中文粗体[/b]和[i]中文斜体[/i]。
 
@@ -25,7 +25,7 @@
 
 * 无序项目 A
 
-* 无序项目 B，包含 [size=12][color=#333]code[/color][/size]
+* 无序项目 B，包含 [size=12]code[/size]
 
 * 无序项目 C
 

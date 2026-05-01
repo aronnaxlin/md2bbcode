@@ -599,21 +599,9 @@ function injectStyle() {
       opacity: .35;
       pointer-events: none;
     }
-    .codeHighlight pre,
-    .codeHighlight code {
-      color: #222 !important;
-    }
     .codeHighlight {
-      background: #f7f7f7 !important;
-      border-color: #d8d8d8 !important;
-    }
-    html[data-theme="dark"] .codeHighlight pre,
-    html[data-theme="dark"] .codeHighlight code {
-      color: #e8e8e8 !important;
-    }
-    html[data-theme="dark"] .codeHighlight {
-      background: #242628 !important;
-      border-color: #555 !important;
+      background: rgba(127, 127, 127, .08) !important;
+      border-color: rgba(127, 127, 127, .28) !important;
     }
   `;
   document.head.append(style);
