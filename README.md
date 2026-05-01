@@ -103,9 +103,9 @@ BBCode 转 Markdown 支持：
 - `[b]`、`[i]`、`[s]`、`[u]`
 - `[url]`、`[img]`
 - `[quote]`、`[code]`、`[mask]`
-- `[color]`、`[size]`、`[font]`
+- `[color]`、`[size]`
 - `[align]`、`[left]`、`[center]`、`[right]`
-- `[list]`、`[olist]`
+- `[list]`
 - 常见 Bangumi 标题写法会尽量还原成 Markdown 标题
 
 未识别的 BBCode 会尽量保留原文，避免误删内容。

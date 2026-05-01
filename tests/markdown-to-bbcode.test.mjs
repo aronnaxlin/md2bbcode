@@ -109,6 +109,7 @@ const reverseCases = [
   ['[url]https://bangumi.tv[/url]', '[https://bangumi.tv](https://bangumi.tv)'],
   ['[img]https://example.com/a.png[/img]', '![](https://example.com/a.png)'],
   ['[img=320,240]https://example.com/a.png[/img]', '<img src="https://example.com/a.png" width="320" height="240" />'],
+  ['[photo=123]example.jpg[/photo]', '<img src="//lain.bgm.tv/pic/photo/l/example.jpg" data-bgm-photo-id="123" data-bgm-photo-filename="example.jpg" />'],
   ['[quote]引用\n第二行[/quote]', '> 引用\n> 第二行'],
   ['[code]const a = 1;[/code]', '```\nconst a = 1;\n```'],
   ['[mask]隐藏[/mask]', '<mask>隐藏</mask>'],
@@ -116,13 +117,13 @@ const reverseCases = [
   ['[size=12][color=#666]const a = 1[/color][/size]', '`const a = 1`'],
   ['[color=red]红色[/color]', '<span style="color: red">红色</span>'],
   ['[size=18]大字[/size]', '<span style="font-size: 18px">大字</span>'],
-  ['[font=serif]衬线[/font]', '<span style="font-family: serif">衬线</span>'],
+  ['[font=serif]衬线[/font]', '[font=serif]衬线[/font]'],
   ['[center]居中[/center]', '<div align="center">居中</div>'],
   ['[align=right]右对齐[/align]', '<div align="right">右对齐</div>'],
   ['[quote=Alice]引用[/quote]', '> **Alice:**\n> 引用'],
   ['[code=js]const a = 1;[/code]', '```js\nconst a = 1;\n```'],
   ['[list][*]第一项[*]第二项[/list]', '- 第一项\n- 第二项'],
-  ['[olist][*]第一项[*]第二项[/olist]', '1. 第一项\n2. 第二项']
+  ['[olist][*]第一项[*]第二项[/olist]', '[olist][*]第一项[*]第二项[/olist]']
 ];
 
 for (const [input, expected] of reverseCases) {
@@ -132,6 +133,16 @@ for (const [input, expected] of reverseCases) {
 assert.equal(
   bbcodeToMarkdown('[b][url=https://bangumi.tv]链接[/url][/b]'),
   '**[链接](https://bangumi.tv)**'
+);
+
+assert.equal(
+  bbcodeToMarkdown('[code][img]https://example.com/a.png[/img][/code]'),
+  '```\n[img]https://example.com/a.png[/img]\n```'
+);
+
+assert.equal(
+  bbcodeToMarkdown('[code][b]raw[/b][/code]'),
+  '```\n[b]raw[/b]\n```'
 );
 
 assert.equal(bbcodeToMarkdown('[b][size=25]一级[/size][/b]'), '# 一级');
@@ -172,6 +183,45 @@ assert.equal(
 );
 
 assert.equal(
+  markdownToBBCode('<span style="font-family: serif">衬线</span>'),
+  '衬线'
+);
+
+assert.equal(
+  markdownToBBCode('<img src="//lain.bgm.tv/pic/photo/l/example.jpg" data-bgm-photo-id="123" data-bgm-photo-filename="example.jpg" />'),
+  '[photo=123]example.jpg[/photo]'
+);
+
+assert.equal(
+  markdownToBBCode('```\n<img src="https://example.com/a.png" width="320" height="240" />\n```'),
+  '[code]<img src="https://example.com/a.png" width="320" height="240" />[/code]'
+);
+
+assert.equal(
+  markdownToBBCode('`[img]https://example.com/a.png[/img]`'),
+  '[size=12][color=#666][img]https://example.com/a.png[/img][/color][/size]'
+);
+
+assert.equal(
+  markdownToBBCode('[img]https://example.com/a.png[/img]'),
+  '[img]https://example.com/a.png[/img]'
+);
+
+assert.equal(
+  markdownToBBCode('[img=320,240]https://example.com/a.png[/img]'),
+  '[img=320,240]https://example.com/a.png[/img]'
+);
+
+assert.equal(
+  markdownToBBCode('[photo=123]example.jpg[/photo] **粗体**'),
+  '[photo=123]example.jpg[/photo] [b]粗体[/b]'
+);
+
+const bbcodeProtectedOnce = markdownToBBCode('[img]https://example.com/a.png[/img] **粗体**');
+assert.equal(bbcodeProtectedOnce, '[img]https://example.com/a.png[/img] [b]粗体[/b]');
+assert.equal(markdownToBBCode(bbcodeProtectedOnce), bbcodeProtectedOnce);
+
+assert.equal(
   markdownToBBCodeChat('**粗体** [链接](https://bangumi.tv) ![图](https://example.com/a.png)'),
   '[b]粗体[/b] [url=https://bangumi.tv]链接[/url] ![图](https://example.com/a.png)'
 );
@@ -185,4 +235,12 @@ const sampleBBCode = readFileSync(new URL('./fixtures/bangumi-bbcode-sample.txt'
 const sampleMarkdown = readFileSync(new URL('./fixtures/bangumi-bbcode-sample.expected.md', import.meta.url), 'utf8');
 assert.equal(bbcodeToMarkdown(sampleBBCode), sampleMarkdown.trim());
 
-console.log(`ok ${cases.length + reverseCases.length + 36} markdown/bbcode conversion cases`);
+const mixedMarkdownProtection = readFileSync(new URL('./fixtures/mixed-markdown-code-protection.md', import.meta.url), 'utf8');
+const mixedMarkdownProtectionExpected = readFileSync(new URL('./fixtures/mixed-markdown-code-protection.expected.txt', import.meta.url), 'utf8');
+assert.equal(markdownToBBCode(mixedMarkdownProtection), mixedMarkdownProtectionExpected.trim());
+
+const mixedBBCodeProtection = readFileSync(new URL('./fixtures/mixed-bbcode-code-protection.txt', import.meta.url), 'utf8');
+const mixedBBCodeProtectionExpected = readFileSync(new URL('./fixtures/mixed-bbcode-code-protection.expected.md', import.meta.url), 'utf8');
+assert.equal(bbcodeToMarkdown(mixedBBCodeProtection), mixedBBCodeProtectionExpected.trim());
+
+console.log(`ok ${cases.length + reverseCases.length + 49} markdown/bbcode conversion cases`);

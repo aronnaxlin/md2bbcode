@@ -42,9 +42,11 @@ const greasyForkHeader = commonHeader.replace(
 const core = await readFile('src/core/markdown-to-bbcode.js', 'utf8');
 const app = await readFile('src/userscript/app.js', 'utf8');
 const moreBBCode = await readFile('src/compatible/more_bbcode.js', 'utf8');
+const imageUpload = await readFile('src/compatible/image_upload.js', 'utf8');
 
 const greasyForkCore = core
-  .replace(/^import MarkdownIt from 'markdown-it';\r?\n\r?\n/, '')
+  .replace(/^import MarkdownIt from 'markdown-it';\r?\n/, '')
+  .replace(/^import \{ imageUploadBBCodeTags, preprocessImageUploadHtmlImage, renderImageUploadPhoto \} from '\.\.\/compatible\/image_upload\.js';\r?\n/, '')
   .replace(/\bnew MarkdownIt\(/g, 'window.markdownit(')
   .replace('export function markdownToBBCode(source) {', 'function markdownToBBCode(source) {')
   .replace('export function bbcodeToMarkdown(source) {', 'function bbcodeToMarkdown(source) {')
@@ -57,6 +59,10 @@ const greasyForkMoreBBCode = moreBBCode
   .replace(/export function /g, 'function ')
   .replace(/export const /g, 'const ');
 
+const greasyForkImageUpload = imageUpload
+  .replace(/export function /g, 'function ')
+  .replace(/export const /g, 'const ');
+
 const greasyForkApp = app
   .replace(/^import \{ md2bbcode \} from '\.\.\/core\/markdown-to-bbcode\.js';\r?\n/, '')
   .replace(/^import \{ isMoreBBCodeTarget, waitForMoreBBCodeMarkItUp \} from '\.\.\/compatible\/more_bbcode\.js';\r?\n/, '');
@@ -64,6 +70,8 @@ const greasyForkApp = app
 await writeFile('dist/md2bbcode.greasyfork.user.js', `${greasyForkHeader}
 (function () {
   'use strict';
+
+${greasyForkImageUpload}
 
 ${greasyForkCore}
 
@@ -117,6 +125,8 @@ await writeFile('dist/md2bbcode.bgm.user.js', `${bgmHeader}
   }
 
   loadScript(markdownItUrl).then(() => {
+${greasyForkImageUpload.split('\n').map(line => `    ${line}`).join('\n')}
+
 ${greasyForkCore.split('\n').map(line => `    ${line}`).join('\n')}
 
 ${greasyForkMoreBBCode.split('\n').map(line => `    ${line}`).join('\n')}

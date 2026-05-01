@@ -49,6 +49,46 @@
   }
 
   loadScript(markdownItUrl).then(() => {
+    const imageUploadBBCodeTags = ['photo'];
+    
+    function parseHtmlAttribute(source, name) {
+      const match = new RegExp(`${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))`, 'i').exec(source);
+      return match?.[1] ?? match?.[2] ?? match?.[3] ?? '';
+    }
+    
+    function escapeHtmlAttribute(value) {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+    
+    function buildBangumiPhotoUrl(filename) {
+      const trimmed = String(filename || '').trim();
+      return trimmed ? `//lain.bgm.tv/pic/photo/l/${trimmed}` : '';
+    }
+    
+    function preprocessImageUploadHtmlImage(fullMatch) {
+      const photoId = parseHtmlAttribute(fullMatch, 'data-bgm-photo-id').trim();
+      const photoFilename = parseHtmlAttribute(fullMatch, 'data-bgm-photo-filename').trim();
+      if (!/^\d+$/.test(photoId) || !photoFilename) return null;
+    
+      return `[photo=${photoId}]${photoFilename}[/photo]`;
+    }
+    
+    function renderImageUploadPhoto(node, value) {
+      const filename = String(value || '').trim();
+      const src = buildBangumiPhotoUrl(filename);
+      if (!src) return '';
+    
+      const photoId = String(node?.attr || '').trim().replace(/^(['"])([\s\S]*)\1$/, '$2');
+      return `<img src="${escapeHtmlAttribute(src)}" data-bgm-photo-id="${escapeHtmlAttribute(photoId)}" data-bgm-photo-filename="${escapeHtmlAttribute(filename)}" />`;
+    }
+    
+
+    
     const markdown = window.markdownit({
       html: false,
       linkify: true,
@@ -63,9 +103,45 @@
       typographer: false
     });
     
+    const protectableBBCodeTags = [
+      'b',
+      'i',
+      'u',
+      's',
+      'url',
+      'img',
+      'quote',
+      'code',
+      'mask',
+      'spoiler',
+      'color',
+      'size',
+      'font',
+      'align',
+      'left',
+      'center',
+      'right',
+      'list',
+      'ul',
+      'ol',
+      'olist',
+      ...imageUploadBBCodeTags
+    ];
+    
+    const knownBBCodeAttrTags = [
+      'url',
+      'img',
+      'quote',
+      'code',
+      'color',
+      'size',
+      'align',
+      ...imageUploadBBCodeTags
+    ];
+    
     const unsafeProtocol = /^(?:javascript|vbscript|file|data):/i;
     const safeImageDataProtocol = /^data:image\/(?:png|gif|jpeg|webp);/i;
-    const knownBBCodePattern = /\[(?:\/?(?:b|i|u|s|url|img|quote|code|mask|spoiler|color|size|font|align|left|center|right|list|ul|ol|olist|\*)|(?:url|img|quote|code|color|size|font|align)=[^\]]+)\]/i;
+    const knownBBCodePattern = new RegExp(`\\[(?:\\/?(?:${protectableBBCodeTags.join('|')}|\\*)|(?:${knownBBCodeAttrTags.join('|')})=[^\\]]+)\\]`, 'i');
     
     markdown.validateLink = url => !unsafeProtocol.test(url) || safeImageDataProtocol.test(url);
     markdown.normalizeLink = url => url;
@@ -121,6 +197,24 @@
       return String(value).replace(/MD2BBCODE_PLACEHOLDER_(\d+)_TOKEN/g, (_match, index) => protectedSnippets[Number(index)] || '');
     }
     
+    function protectMarkdownCodeContents(source, protectedSnippets) {
+      let result = String(source).replace(
+        /(^|\n)([ \t]*)(`{3,}|~{3,})([^\n]*)\n([\s\S]*?)\n\2\3[ \t]*(?=\n|$)/g,
+        (_match, prefix, indent, fence, info, content) => `${prefix}${indent}${fence}${info}
+    ${protectPreprocessedBBCode(protectedSnippets, content)}
+    ${indent}${fence}`
+      );
+    
+      result = result.replace(/(^|[^`])(`+)([^`\n]*?)\2(?!`)/g, (_match, prefix, marker, content) => `${prefix}${marker}${protectPreprocessedBBCode(protectedSnippets, content)}${marker}`);
+      return result;
+    }
+    
+    function protectExistingBBCode(source, protectedSnippets) {
+      const tagPattern = protectableBBCodeTags.join('|');
+      const blockPattern = new RegExp(`\\[(${tagPattern})(?:=[^\\]]*)?\\][\\s\\S]*?\\[/\\1\\]`, 'gi');
+      return source.replace(blockPattern, match => protectPreprocessedBBCode(protectedSnippets, match));
+    }
+    
     function replaceInnermostTag(source, openTag, closeTag, processor) {
       let result = source;
       while (true) {
@@ -155,10 +249,17 @@
     
     function preprocessMarkdown(source) {
       const protectedSnippets = [];
-      let result = String(source)
-        .replace(/<!--[\s\S]*?-->/g, '');
+      let result = protectMarkdownCodeContents(
+        String(source).replace(/<!--[\s\S]*?-->/g, ''),
+        protectedSnippets
+      );
     
       result = result.replace(/<img\b[^>]*>/gi, fullMatch => {
+        const imageUploadBBCode = preprocessImageUploadHtmlImage(fullMatch);
+        if (imageUploadBBCode) {
+          return protectPreprocessedBBCode(protectedSnippets, imageUploadBBCode);
+        }
+    
         const src = parseHtmlAttribute(fullMatch, 'src').trim();
         if (!src || !isSafeImage(src)) return fullMatch;
     
@@ -170,6 +271,8 @@
     
         return protectPreprocessedBBCode(protectedSnippets, `[img]${src}[/img]`);
       });
+    
+      result = protectExistingBBCode(result, protectedSnippets);
     
       // Process nested <details> from innermost to outermost
       result = replaceInnermostTag(result, '<details', '</details>', (fullMatch) => {
@@ -197,10 +300,7 @@
     
         const color = /(?:^|;)\s*color\s*:\s*([^;]+)/i.exec(style)?.[1]?.trim();
         const size = /(?:^|;)\s*font-size\s*:\s*([0-9.]+)(?:px)?/i.exec(style)?.[1]?.trim();
-        const family = /(?:^|;)\s*font-family\s*:\s*([^;]+)/i.exec(style)?.[1]?.trim();
-    
         let value = content;
-        if (family) value = `[font=${family.replace(/^["']|["']$/g, '')}]${value}[/font]`;
         if (size) value = `[size=${size}]${value}[/size]`;
         if (color) value = `[color=${color}]${value}[/color]`;
         return value;
@@ -335,6 +435,7 @@
     function serializeBBCodeNode(node) {
       if (node.type === 'text') return node.value;
       if (node.type === 'root') return node.children.map(serializeBBCodeNode).join('');
+      if (node.name === 'li') return `[*]${node.children.map(serializeBBCodeNode).join('')}`;
       return `${node.rawOpen}${node.children.map(serializeBBCodeNode).join('')}[/${node.name}]`;
     }
     
@@ -455,6 +556,10 @@
       return `\`\`\`${language}\n${content}\n\`\`\``;
     }
     
+    function renderCodeNode(node) {
+      return renderCodeBlock(node.children.map(serializeBBCodeNode).join(''), node.attr);
+    }
+    
     function renderUrl(value, attr) {
       const href = attr || value.trim();
       const destination = formatMarkdownDestination(href);
@@ -499,11 +604,6 @@
         return `\`${value}\``;
       }
       return color ? `<span style="color: ${escapeHtmlAttribute(color)}">${value}</span>` : value;
-    }
-    
-    function renderFont(node, value) {
-      const family = stripWrappingQuotes(node.attr);
-      return family ? `<span style="font-family: ${escapeHtmlAttribute(family)}">${value}</span>` : value;
     }
     
     function renderAligned(attr, value) {
@@ -571,10 +671,12 @@
           return renderUrl(value, `mailto:${node.attr || value.trim()}`);
         case 'img':
           return renderImage(node, value);
+        case 'photo':
+          return renderImageUploadPhoto(node, value);
         case 'quote':
           return renderQuote(value, node.attr);
         case 'code':
-          return renderCodeBlock(value, node.attr);
+          return renderCodeNode(node);
         case 'mask':
           return `<mask>${value}</mask>`;
         case 'spoiler':
@@ -583,8 +685,6 @@
           return renderSize(node, value);
         case 'color':
           return renderColor(node, value);
-        case 'font':
-          return renderFont(node, value);
         case 'align':
           return renderAligned(node.attr, value);
         case 'left':
@@ -596,7 +696,6 @@
         case 'ul':
           return renderList(node, false);
         case 'ol':
-        case 'olist':
           return renderList(node, true);
         case 'li':
           return `- ${value.trim()}`;
@@ -747,7 +846,7 @@
         case 'url':
           return renderUrl(value, node.attr);
         case 'code':
-          return renderCodeBlock(value, node.attr);
+          return renderCodeNode(node);
         case 'mask':
           return `<mask>${value}</mask>`;
         case 'li':
