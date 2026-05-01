@@ -6534,16 +6534,6 @@ ${content}
     event.stopPropagation();
     (_a2 = event.stopImmediatePropagation) == null ? void 0 : _a2.call(event);
   }
-  function guardMarkdownSubmitClick(event) {
-    var _a2;
-    const target = event.target instanceof Element ? event.target : null;
-    const submitter = target == null ? void 0 : target.closest('button, input[type="submit"], input[type="image"]');
-    const form = (submitter == null ? void 0 : submitter.form) || (submitter == null ? void 0 : submitter.closest("form"));
-    if (!interceptMarkdownSubmission(form)) return;
-    event.preventDefault();
-    event.stopPropagation();
-    (_a2 = event.stopImmediatePropagation) == null ? void 0 : _a2.call(event);
-  }
   function enhanceMarkItUpHeader(header) {
     var _a2;
     if (header.dataset.md2bbcodeEnhanced === "true") return;
@@ -6760,7 +6750,6 @@ ${content}
     }
   });
   observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
-  document.addEventListener("click", guardMarkdownSubmitClick, true);
   document.addEventListener("submit", guardMarkdownSubmission, true);
   document.addEventListener("focusin", (event) => {
     var _a2;

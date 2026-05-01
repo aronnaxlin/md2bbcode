@@ -1387,17 +1387,6 @@ function guardMarkdownSubmission(event) {
   event.stopImmediatePropagation?.();
 }
 
-function guardMarkdownSubmitClick(event) {
-  const target = event.target instanceof Element ? event.target : null;
-  const submitter = target?.closest('button, input[type="submit"], input[type="image"]');
-  const form = submitter?.form || submitter?.closest('form');
-  if (!interceptMarkdownSubmission(form)) return;
-
-  event.preventDefault();
-  event.stopPropagation();
-  event.stopImmediatePropagation?.();
-}
-
 /**
  * 增强已有的 markItUp 工具栏。
  * Bangumi 的编辑器在点击后才会动态生成 .markItUp 结构，
@@ -1658,7 +1647,6 @@ observer.observe(document.body, { childList: true, subtree: true, attributes: tr
 // ===== focusin 事件：处理点击后才初始化的编辑器 =====
 // 对动态编辑器，给站内脚本和兼容脚本留出初始化 markItUp 的时间窗口；
 // 只有 markItUp 真正出现后，才追加 md2bbcode 按钮。
-document.addEventListener('click', guardMarkdownSubmitClick, true);
 document.addEventListener('submit', guardMarkdownSubmission, true);
 
 document.addEventListener('focusin', event => {
