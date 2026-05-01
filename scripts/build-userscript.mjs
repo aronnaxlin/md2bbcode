@@ -41,6 +41,7 @@ const greasyForkHeader = commonHeader.replace(
 
 const core = await readFile('src/core/markdown-to-bbcode.js', 'utf8');
 const app = await readFile('src/userscript/app.js', 'utf8');
+const moreBBCode = await readFile('src/compatible/more_bbcode.js', 'utf8');
 
 const greasyForkCore = core
   .replace(/^import MarkdownIt from 'markdown-it';\r?\n\r?\n/, '')
@@ -49,15 +50,24 @@ const greasyForkCore = core
   .replace('export function bbcodeToMarkdown(source) {', 'function bbcodeToMarkdown(source) {')
   .replace('export function markdownToBBCodeChat(source) {', 'function markdownToBBCodeChat(source) {')
   .replace('export function bbcodeToMarkdownChat(source) {', 'function bbcodeToMarkdownChat(source) {')
-  .replace(/export const md2bbcode = \{\r?\n  markdownToBBCode,\r?\n  bbcodeToMarkdown,\r?\n  markdownToBBCodeChat,\r?\n  bbcodeToMarkdownChat\r?\n\};/, 'const md2bbcode = {\n  markdownToBBCode,\n  bbcodeToMarkdown,\n  markdownToBBCodeChat,\n  bbcodeToMarkdownChat\n};');
+  .replace('export function looksLikeMarkdown(source) {', 'function looksLikeMarkdown(source) {')
+  .replace(/export const md2bbcode = \{\r?\n  markdownToBBCode,\r?\n  bbcodeToMarkdown,\r?\n  markdownToBBCodeChat,\r?\n  bbcodeToMarkdownChat,\r?\n  looksLikeMarkdown\r?\n\};/, 'const md2bbcode = {\n  markdownToBBCode,\n  bbcodeToMarkdown,\n  markdownToBBCodeChat,\n  bbcodeToMarkdownChat,\n  looksLikeMarkdown\n};');
 
-const greasyForkApp = app.replace(/^import \{ md2bbcode \} from '\.\.\/core\/markdown-to-bbcode\.js';\r?\n\r?\n/, '');
+const greasyForkMoreBBCode = moreBBCode
+  .replace(/export function /g, 'function ')
+  .replace(/export const /g, 'const ');
+
+const greasyForkApp = app
+  .replace(/^import \{ md2bbcode \} from '\.\.\/core\/markdown-to-bbcode\.js';\r?\n/, '')
+  .replace(/^import \{ isMoreBBCodeTarget, waitForMoreBBCodeMarkItUp \} from '\.\.\/compatible\/more_bbcode\.js';\r?\n/, '');
 
 await writeFile('dist/md2bbcode.greasyfork.user.js', `${greasyForkHeader}
 (function () {
   'use strict';
 
 ${greasyForkCore}
+
+${greasyForkMoreBBCode}
 
 ${greasyForkApp}
 })();
@@ -108,6 +118,8 @@ await writeFile('dist/md2bbcode.bgm.user.js', `${bgmHeader}
 
   loadScript(markdownItUrl).then(() => {
 ${greasyForkCore.split('\n').map(line => `    ${line}`).join('\n')}
+
+${greasyForkMoreBBCode.split('\n').map(line => `    ${line}`).join('\n')}
 
 ${greasyForkApp.split('\n').map(line => `    ${line}`).join('\n')}
   }).catch(error => {

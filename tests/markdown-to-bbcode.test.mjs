@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import {
   bbcodeToMarkdown,
   bbcodeToMarkdownChat,
+  looksLikeMarkdown,
   markdownToBBCode,
   markdownToBBCodeChat
 } from '../src/core/markdown-to-bbcode.js';
@@ -92,6 +93,13 @@ assert.equal(
   '正文'
 );
 
+assert.equal(looksLikeMarkdown('## 标题\n\n- 第一项\n- 第二项'), true);
+assert.equal(looksLikeMarkdown('[链接](https://bangumi.tv)'), true);
+assert.equal(looksLikeMarkdown('这里有 `inline code`。'), true);
+assert.equal(looksLikeMarkdown('[b]已经是 BBCode[/b]'), false);
+assert.equal(looksLikeMarkdown('普通中文句子，没有任何格式。'), false);
+assert.equal(looksLikeMarkdown('https://bangumi.tv 只是一个裸链接'), false);
+
 const reverseCases = [
   ['[b]粗体[/b]', '**粗体**'],
   ['[i]斜体[/i]', '*斜体*'],
@@ -166,4 +174,4 @@ const sampleBBCode = readFileSync(new URL('./fixtures/bangumi-bbcode-sample.txt'
 const sampleMarkdown = readFileSync(new URL('./fixtures/bangumi-bbcode-sample.expected.md', import.meta.url), 'utf8');
 assert.equal(bbcodeToMarkdown(sampleBBCode), sampleMarkdown.trim());
 
-console.log(`ok ${cases.length + reverseCases.length + 27} markdown/bbcode conversion cases`);
+console.log(`ok ${cases.length + reverseCases.length + 33} markdown/bbcode conversion cases`);

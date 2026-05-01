@@ -56,8 +56,16 @@
       typographer: false
     });
     
+    const markdownDetector = window.markdownit({
+      html: false,
+      linkify: false,
+      breaks: false,
+      typographer: false
+    });
+    
     const unsafeProtocol = /^(?:javascript|vbscript|file|data):/i;
     const safeImageDataProtocol = /^data:image\/(?:png|gif|jpeg|webp);/i;
+    const knownBBCodePattern = /\[(?:\/?(?:b|i|u|s|url|img|quote|code|mask|spoiler|color|size|font|align|left|center|right|list|ul|ol|olist|\*)|(?:url|img|quote|code|color|size|font|align)=[^\]]+)\]/i;
     
     markdown.validateLink = url => !unsafeProtocol.test(url) || safeImageDataProtocol.test(url);
     markdown.normalizeLink = url => url;
@@ -557,6 +565,70 @@
         .trim();
     }
     
+    function scoreMarkdownInlineChildren(children) {
+      let score = 0;
+    
+      for (const child of children || []) {
+        switch (child.type) {
+          case 'image':
+            score += 3;
+            break;
+          case 'link_open':
+            score += 3;
+            break;
+          case 'code_inline':
+            score += 2;
+            break;
+          case 'strong_open':
+          case 's_open':
+            score += 2;
+            break;
+          case 'em_open':
+            score += 1;
+            break;
+          default:
+            break;
+        }
+      }
+    
+      return score;
+    }
+    
+    function looksLikeMarkdown(source) {
+      const text = String(source || '').trim();
+      if (!text || text.length < 6) return false;
+      if (knownBBCodePattern.test(text)) return false;
+    
+      const tokens = markdownDetector.parse(text, {});
+      let score = 0;
+    
+      for (const token of tokens) {
+        switch (token.type) {
+          case 'heading_open':
+          case 'fence':
+          case 'code_block':
+          case 'table_open':
+            score += 3;
+            break;
+          case 'blockquote_open':
+          case 'bullet_list_open':
+          case 'ordered_list_open':
+          case 'hr':
+            score += 2;
+            break;
+          case 'inline':
+            score += scoreMarkdownInlineChildren(token.children);
+            break;
+          default:
+            break;
+        }
+    
+        if (score >= 2) return true;
+      }
+    
+      return false;
+    }
+    
     // ===== Chat (Re:Dollars) limited converter =====
     // Re:Dollars only supports: [b], [i], [u], [s], [code], [url], [mask]
     
@@ -670,15 +742,73 @@
       markdownToBBCode,
       bbcodeToMarkdown,
       markdownToBBCodeChat,
-      bbcodeToMarkdownChat
+      bbcodeToMarkdownChat,
+      looksLikeMarkdown
     };
     
 
+    /**
+     * 兼容「为更多地方加上 BBCodeHelper」脚本（more_bbcode）。
+     * 该脚本会为 Bangumi 上原本没有 markItUp 的 textarea 动态加载并初始化编辑器。
+     * md2bbcode 需要：
+     * 1. 识别这些 textarea 也需要增强；
+     * 2. 在 more_bbcode 异步加载完成前，避免过早创建自定义工具栏导致重复。
+     */
+    
+    const MORE_BBCODE_SELECTORS = [
+      '#msg_body',
+      '#newbio',
+      '#summary',
+      '.tip textarea#content',
+      '#desc',
+      '#subject_summary',
+      '#crt_summary',
+      '#comment_list textarea.sub_reply'
+    ];
+    
+    /** 判断 textarea 是否是 more_bbcode 脚本会添加编辑器的目标 */
+    function isMoreBBCodeTarget(element) {
+      if (!element || element.tagName !== 'TEXTAREA') return false;
+      return element.matches?.(MORE_BBCODE_SELECTORS.join(', '));
+    }
+    
+    /**
+     * 对 more_bbcode 目标进行轮询，等待其 markItUp 初始化完成。
+     * 如果超时仍未出现，则静默结束，避免在 more_bbcode 初始化前
+     * 由 md2bbcode 抢先创建自定义工具栏。
+     */
+    function waitForMoreBBCodeMarkItUp(textarea, onReady, timeout = 8000) {
+      if (!textarea?.isConnected) return;
+      if (textarea.closest('.markItUp')) {
+        onReady();
+        return;
+      }
+    
+      const startTime = Date.now();
+      const timer = setInterval(() => {
+        if (!textarea.isConnected) {
+          clearInterval(timer);
+          return;
+        }
+        if (textarea.closest('.markItUp')) {
+          clearInterval(timer);
+          onReady();
+          return;
+        }
+        if (Date.now() - startTime > timeout) {
+          clearInterval(timer);
+        }
+      }, 300);
+    }
+    
+
+    
     const SCRIPT_CLASS = 'md2bbcode';
     const STORAGE_KEY = 'md2bbcode_settings';
     const COOKIE_KEYS = {
       chatButtons: 'md2bbcode_chat',
-      toolbarButtons: 'md2bbcode_toolbar'
+      toolbarButtons: 'md2bbcode_toolbar',
+      submitGuard: 'md2bbcode_submit_guard'
     };
     
     function getLocalStorage() {
@@ -760,6 +890,32 @@
       saveSettings(settings);
     }
     
+    function normalizeButtonMode(value) {
+      switch (value) {
+        case 'markdown-only':
+          return 'md-to-bbcode';
+        case 'bbcode-only':
+          return 'bbcode-to-md';
+        case 'both':
+        case 'md-to-bbcode':
+        case 'bbcode-to-md':
+        case 'none':
+          return value;
+        default:
+          return 'both';
+      }
+    }
+    
+    function shouldShowMarkdownToBBCode(mode) {
+      const normalized = normalizeButtonMode(mode);
+      return normalized === 'both' || normalized === 'md-to-bbcode';
+    }
+    
+    function shouldShowBBCodeToMarkdown(mode) {
+      const normalized = normalizeButtonMode(mode);
+      return normalized === 'both' || normalized === 'bbcode-to-md';
+    }
+    
     const markdownIcon = `
       <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
         <path d="M3.2 4.6c0-.66.54-1.2 1.2-1.2h11.2c.66 0 1.2.54 1.2 1.2v10.8c0 .66-.54 1.2-1.2 1.2H4.4c-.66 0-1.2-.54-1.2-1.2V4.6Zm1.8.6v9.6h10V5.2H5Z"/>
@@ -798,6 +954,17 @@
     
       textarea.focus();
       dispatchEditorEvents(textarea);
+    }
+    
+    function convertWholeTextareaToBBCode(textarea) {
+      const converted = md2bbcode.markdownToBBCode(textarea.value);
+      if (converted === textarea.value) return false;
+    
+      textarea.value = converted;
+      textarea.focus();
+      textarea.setSelectionRange(0, converted.length);
+      dispatchEditorEvents(textarea);
+      return true;
     }
     
     async function convertContentEditable(editor, direction, chatMode = false) {
@@ -895,31 +1062,30 @@
     function addConversionButtons(toolbar, textarea) {
       if (toolbar.querySelector('[data-md2bbcode-toolbar="true"]')) return;
     
-      const mode = getSetting('toolbarButtons', 'both');
+      const cleanBtn = Array.from(toolbar.children).find(child => child.classList?.contains('tool_clean'));
+      const mode = normalizeButtonMode(getSetting('toolbarButtons', 'both'));
       if (mode === 'none') return;
     
-      const convertBtn = createToolbarButton(
-        `${SCRIPT_CLASS}ConvertBtn`,
-        'Markdown 转 BBCode（有选区时只转换选区）',
-        markdownIcon
-      );
-      bindConvertButton(convertBtn, textarea, 'markdown-to-bbcode');
+      let insertionPoint = cleanBtn || null;
     
-      const cleanBtn = Array.from(toolbar.children).find(child => child.classList?.contains('tool_clean'));
-      if (cleanBtn) {
-        toolbar.insertBefore(convertBtn, cleanBtn);
-      } else {
-        toolbar.append(convertBtn);
+      if (shouldShowMarkdownToBBCode(mode)) {
+        const convertBtn = createToolbarButton(
+          `${SCRIPT_CLASS}ConvertBtn`,
+          'Markdown 转 BBCode（有选区时只转换选区）',
+          markdownIcon
+        );
+        bindConvertButton(convertBtn, textarea, 'markdown-to-bbcode');
+        toolbar.insertBefore(convertBtn, insertionPoint);
       }
     
-      if (mode === 'both') {
+      if (shouldShowBBCodeToMarkdown(mode)) {
         const reverseBtn = createToolbarButton(
           `${SCRIPT_CLASS}ReverseBtn`,
           'BBCode 转 Markdown（有选区时只转换选区）',
           bbcodeIcon
         );
         bindConvertButton(reverseBtn, textarea, 'bbcode-to-markdown');
-        toolbar.insertBefore(reverseBtn, convertBtn.nextSibling);
+        toolbar.insertBefore(reverseBtn, insertionPoint);
       }
     }
     
@@ -947,17 +1113,11 @@
       // Avoid duplicate buttons in the same chat window
       if (headerButtons.querySelector('[data-md2bbcode="true"]')) return;
     
-      const mode = getSetting('chatButtons', 'both');
+      const mode = normalizeButtonMode(getSetting('chatButtons', 'both'));
       if (mode === 'none') {
         editor.dataset.md2bbcodeEnhanced = 'true';
         return;
       }
-    
-      const convertBtn = createChatButton(
-        `${SCRIPT_CLASS}ChatConvertBtn`,
-        'Markdown 转 BBCode（有选区时只转换选区）',
-        markdownIcon
-      );
     
       function bindChatButton(button, direction) {
         button.addEventListener('click', async event => {
@@ -981,23 +1141,27 @@
         });
       }
     
-      bindChatButton(convertBtn, 'markdown-to-bbcode');
-    
       const searchBtn = headerButtons.querySelector('#dollars-search-btn');
-      if (searchBtn) {
-        headerButtons.insertBefore(convertBtn, searchBtn);
-      } else {
-        headerButtons.prepend(convertBtn);
+      let insertionPoint = searchBtn || headerButtons.firstChild;
+    
+      if (shouldShowMarkdownToBBCode(mode)) {
+        const convertBtn = createChatButton(
+          `${SCRIPT_CLASS}ChatConvertBtn`,
+          'Markdown 转 BBCode（有选区时只转换选区）',
+          markdownIcon
+        );
+        bindChatButton(convertBtn, 'markdown-to-bbcode');
+        headerButtons.insertBefore(convertBtn, insertionPoint);
       }
     
-      if (mode === 'both') {
+      if (shouldShowBBCodeToMarkdown(mode)) {
         const reverseBtn = createChatButton(
           `${SCRIPT_CLASS}ChatReverseBtn`,
           'BBCode 转 Markdown（有选区时只转换选区）',
           bbcodeIcon
         );
         bindChatButton(reverseBtn, 'bbcode-to-markdown');
-        headerButtons.insertBefore(reverseBtn, searchBtn || convertBtn);
+        headerButtons.insertBefore(reverseBtn, insertionPoint);
       }
     
       editor.dataset.md2bbcodeEnhanced = 'true';
@@ -1023,7 +1187,10 @@
       // 4. 如果已经在 markItUp 容器内，说明是 Bangumi 的 BBCode 编辑器
       if (textarea.closest('.markItUp')) return true;
     
-      // 4. 根据所在的已知编辑区域判断
+      // 4. 兼容 more_bbcode 脚本会添加编辑器的位置
+      if (isMoreBBCodeTarget(textarea)) return true;
+    
+      // 5. 根据所在的已知编辑区域判断
       const editorArea = textarea.closest([
         '#comment_box',
         '.reply_box',
@@ -1054,6 +1221,57 @@
       return false;
     }
     
+    function findMarkdownLikeTextareas(form) {
+      return Array.from(form.querySelectorAll('textarea')).filter(textarea => {
+        if (!isEditorTextarea(textarea)) return false;
+    
+        const value = String(textarea.value || '').trim();
+        if (!value) return false;
+    
+        return md2bbcode.looksLikeMarkdown(value);
+      });
+    }
+    
+    function shouldGuardMarkdownSubmission() {
+      return getSetting('submitGuard', 'on') === 'on';
+    }
+    
+    function interceptMarkdownSubmission(form) {
+      if (!(form instanceof HTMLFormElement)) return false;
+      if (!shouldGuardMarkdownSubmission()) return false;
+    
+      const textareas = findMarkdownLikeTextareas(form);
+      if (!textareas.length) return false;
+    
+      const shouldConvert = window.confirm(
+        '检测到你可能直接写了 Markdown。\n\n点击“确定”会先转换为 BBCode，并取消本次发送；你可以检查结果后再手动点击一次发送。'
+      );
+      if (!shouldConvert) return false;
+    
+      textareas.forEach(convertWholeTextareaToBBCode);
+      return true;
+    }
+    
+    function guardMarkdownSubmission(event) {
+      const form = event.target;
+      if (!interceptMarkdownSubmission(form)) return;
+    
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+    }
+    
+    function guardMarkdownSubmitClick(event) {
+      const target = event.target instanceof Element ? event.target : null;
+      const submitter = target?.closest('button, input[type="submit"], input[type="image"]');
+      const form = submitter?.form || submitter?.closest('form');
+      if (!interceptMarkdownSubmission(form)) return;
+    
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+    }
+    
     /**
      * 增强已有的 markItUp 工具栏。
      * Bangumi 的编辑器在点击后才会动态生成 .markItUp 结构，
@@ -1074,27 +1292,6 @@
     }
     
     /**
-     * 为没有原生 markItUp 的 textarea 创建自定义工具栏。
-     * 仅在确认该 textarea 确实需要工具栏、且不会被 Bangumi 动态初始化 markItUp 时使用。
-     */
-    function enhancePlainTextarea(textarea) {
-      if (!textarea.isConnected) return;
-      if (textarea.dataset.md2bbcodeEnhanced === 'true') return;
-      if (textarea.closest('.markItUp')) return;
-      if (!isEditorTextarea(textarea)) return;
-    
-      const header = document.createElement('div');
-      header.className = `markItUpHeader ${SCRIPT_CLASS}PlainHeader`;
-    
-      const toolbar = document.createElement('ul');
-      header.append(toolbar);
-      textarea.before(header);
-      textarea.dataset.md2bbcodeEnhanced = 'true';
-    
-      addConversionButtons(toolbar, textarea);
-    }
-    
-    /**
      * 扫描并增强页面上所有已有的 markItUpHeader。
      */
     function enhanceAllEditors() {
@@ -1108,11 +1305,24 @@
       if (!isEditorTextarea(textarea)) return;
     
       textarea.dataset.md2bbcodePlainEnhanceScheduled = 'true';
+    
+      // 对 more_bbcode 目标延长等待；对站内其它动态编辑器则只短暂等待。
+      // 两种情况都只在 markItUp 真正出现后增强，避免 md2bbcode 抢先创建界面。
+      if (isMoreBBCodeTarget(textarea) && !textarea.closest('.markItUp')) {
+        waitForMoreBBCodeMarkItUp(textarea, () => {
+          delete textarea.dataset.md2bbcodePlainEnhanceScheduled;
+          if (textarea.closest('.markItUp')) {
+            enhanceAllEditors();
+          }
+        });
+        return;
+      }
+    
       setTimeout(() => {
         delete textarea.dataset.md2bbcodePlainEnhanceScheduled;
         if (!textarea.isConnected) return;
-        if (!textarea.closest('.markItUp') && textarea.dataset.md2bbcodeEnhanced !== 'true') {
-          enhancePlainTextarea(textarea);
+        if (textarea.closest('.markItUp')) {
+          enhanceAllEditors();
         }
       }, delay);
     }
@@ -1168,18 +1378,6 @@
         .${SCRIPT_CLASS}Loading a {
           opacity: .42;
         }
-        .${SCRIPT_CLASS}PlainHeader {
-          margin: 0 0 4px;
-          min-height: 24px;
-        }
-        .${SCRIPT_CLASS}PlainHeader ul {
-          display: flex;
-          align-items: center;
-          gap: 2px;
-          margin: 0;
-          padding: 0;
-          list-style: none;
-        }
         .${SCRIPT_CLASS}ChatBtn {
           display: flex;
           align-items: center;
@@ -1230,29 +1428,43 @@
         type: 'options',
         config: [
           {
-            title: 'Re:Dollars 聊天按钮',
+            title: 'Re:Dollars 聊天转换按钮',
             name: 'md2bbcode_chat',
             type: 'radio',
             defaultValue: 'both',
-            getCurrentValue: () => getSetting('chatButtons', 'both'),
+            getCurrentValue: () => normalizeButtonMode(getSetting('chatButtons', 'both')),
             onChange: value => setSetting('chatButtons', value),
             options: [
-              { value: 'both', label: '显示两个按钮' },
-              { value: 'markdown-only', label: '只显示 Markdown→BBCode' },
+              { value: 'both', label: '显示两个方向' },
+              { value: 'md-to-bbcode', label: '仅 Markdown 转 BBCode' },
+              { value: 'bbcode-to-md', label: '仅 BBCode 转 Markdown' },
               { value: 'none', label: '不显示' }
             ]
           },
           {
-            title: '编辑器工具栏按钮',
+            title: '编辑器工具栏转换按钮',
             name: 'md2bbcode_toolbar',
             type: 'radio',
             defaultValue: 'both',
-            getCurrentValue: () => getSetting('toolbarButtons', 'both'),
+            getCurrentValue: () => normalizeButtonMode(getSetting('toolbarButtons', 'both')),
             onChange: value => setSetting('toolbarButtons', value),
             options: [
-              { value: 'both', label: '显示两个按钮' },
-              { value: 'markdown-only', label: '只显示 Markdown→BBCode' },
+              { value: 'both', label: '显示两个方向' },
+              { value: 'md-to-bbcode', label: '仅 Markdown 转 BBCode' },
+              { value: 'bbcode-to-md', label: '仅 BBCode 转 Markdown' },
               { value: 'none', label: '不显示' }
+            ]
+          },
+          {
+            title: '发送前 Markdown 提醒',
+            name: 'md2bbcode_submit_guard',
+            type: 'radio',
+            defaultValue: 'on',
+            getCurrentValue: () => getSetting('submitGuard', 'on'),
+            onChange: value => setSetting('submitGuard', value),
+            options: [
+              { value: 'on', label: '启用' },
+              { value: 'off', label: '停用' }
             ]
           }
         ]
@@ -1317,9 +1529,12 @@
     
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
     
-    // ===== focusin 事件：处理无原生 markItUp 的编辑器 =====
-    // 对于某些不会自动生成 markItUp 但又需要工具栏的 textarea，
-    // 在获得焦点后延迟检查；若 markItUp 仍未出现，则创建自定义工具栏。
+    // ===== focusin 事件：处理点击后才初始化的编辑器 =====
+    // 对动态编辑器，给站内脚本和兼容脚本留出初始化 markItUp 的时间窗口；
+    // 只有 markItUp 真正出现后，才追加 md2bbcode 按钮。
+    document.addEventListener('click', guardMarkdownSubmitClick, true);
+    document.addEventListener('submit', guardMarkdownSubmission, true);
+    
     document.addEventListener('focusin', event => {
       const target = event.target;
     

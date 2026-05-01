@@ -5429,8 +5429,15 @@
     breaks: false,
     typographer: false
   });
+  var markdownDetector = new lib_default({
+    html: false,
+    linkify: false,
+    breaks: false,
+    typographer: false
+  });
   var unsafeProtocol = /^(?:javascript|vbscript|file|data):/i;
   var safeImageDataProtocol = /^data:image\/(?:png|gif|jpeg|webp);/i;
+  var knownBBCodePattern = /\[(?:\/?(?:b|i|u|s|url|img|quote|code|mask|spoiler|color|size|font|align|left|center|right|list|ul|ol|olist|\*)|(?:url|img|quote|code|color|size|font|align)=[^\]]+)\]/i;
   markdown.validateLink = (url) => !unsafeProtocol.test(url) || safeImageDataProtocol.test(url);
   markdown.normalizeLink = (url) => url;
   function attr(token, name) {
@@ -5842,6 +5849,62 @@ ${content}
   function normalizeMarkdown(value) {
     return value.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   }
+  function scoreMarkdownInlineChildren(children) {
+    let score = 0;
+    for (const child of children || []) {
+      switch (child.type) {
+        case "image":
+          score += 3;
+          break;
+        case "link_open":
+          score += 3;
+          break;
+        case "code_inline":
+          score += 2;
+          break;
+        case "strong_open":
+        case "s_open":
+          score += 2;
+          break;
+        case "em_open":
+          score += 1;
+          break;
+        default:
+          break;
+      }
+    }
+    return score;
+  }
+  function looksLikeMarkdown(source) {
+    const text2 = String(source || "").trim();
+    if (!text2 || text2.length < 6) return false;
+    if (knownBBCodePattern.test(text2)) return false;
+    const tokens = markdownDetector.parse(text2, {});
+    let score = 0;
+    for (const token of tokens) {
+      switch (token.type) {
+        case "heading_open":
+        case "fence":
+        case "code_block":
+        case "table_open":
+          score += 3;
+          break;
+        case "blockquote_open":
+        case "bullet_list_open":
+        case "ordered_list_open":
+        case "hr":
+          score += 2;
+          break;
+        case "inline":
+          score += scoreMarkdownInlineChildren(token.children);
+          break;
+        default:
+          break;
+      }
+      if (score >= 2) return true;
+    }
+    return false;
+  }
   var chatMarkdown = new lib_default({
     html: false,
     linkify: false,
@@ -5935,15 +5998,56 @@ ${content}
     markdownToBBCode,
     bbcodeToMarkdown,
     markdownToBBCodeChat,
-    bbcodeToMarkdownChat
+    bbcodeToMarkdownChat,
+    looksLikeMarkdown
   };
+
+  // src/compatible/more_bbcode.js
+  var MORE_BBCODE_SELECTORS = [
+    "#msg_body",
+    "#newbio",
+    "#summary",
+    ".tip textarea#content",
+    "#desc",
+    "#subject_summary",
+    "#crt_summary",
+    "#comment_list textarea.sub_reply"
+  ];
+  function isMoreBBCodeTarget(element) {
+    var _a2;
+    if (!element || element.tagName !== "TEXTAREA") return false;
+    return (_a2 = element.matches) == null ? void 0 : _a2.call(element, MORE_BBCODE_SELECTORS.join(", "));
+  }
+  function waitForMoreBBCodeMarkItUp(textarea, onReady, timeout = 8e3) {
+    if (!(textarea == null ? void 0 : textarea.isConnected)) return;
+    if (textarea.closest(".markItUp")) {
+      onReady();
+      return;
+    }
+    const startTime = Date.now();
+    const timer = setInterval(() => {
+      if (!textarea.isConnected) {
+        clearInterval(timer);
+        return;
+      }
+      if (textarea.closest(".markItUp")) {
+        clearInterval(timer);
+        onReady();
+        return;
+      }
+      if (Date.now() - startTime > timeout) {
+        clearInterval(timer);
+      }
+    }, 300);
+  }
 
   // src/userscript/app.js
   var SCRIPT_CLASS = "md2bbcode";
   var STORAGE_KEY = "md2bbcode_settings";
   var COOKIE_KEYS = {
     chatButtons: "md2bbcode_chat",
-    toolbarButtons: "md2bbcode_toolbar"
+    toolbarButtons: "md2bbcode_toolbar",
+    submitGuard: "md2bbcode_submit_guard"
   };
   function getLocalStorage() {
     try {
@@ -6009,6 +6113,29 @@ ${content}
     settings[key] = value;
     saveSettings(settings);
   }
+  function normalizeButtonMode(value) {
+    switch (value) {
+      case "markdown-only":
+        return "md-to-bbcode";
+      case "bbcode-only":
+        return "bbcode-to-md";
+      case "both":
+      case "md-to-bbcode":
+      case "bbcode-to-md":
+      case "none":
+        return value;
+      default:
+        return "both";
+    }
+  }
+  function shouldShowMarkdownToBBCode(mode) {
+    const normalized = normalizeButtonMode(mode);
+    return normalized === "both" || normalized === "md-to-bbcode";
+  }
+  function shouldShowBBCodeToMarkdown(mode) {
+    const normalized = normalizeButtonMode(mode);
+    return normalized === "both" || normalized === "bbcode-to-md";
+  }
   var markdownIcon = `
   <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
     <path d="M3.2 4.6c0-.66.54-1.2 1.2-1.2h11.2c.66 0 1.2.54 1.2 1.2v10.8c0 .66-.54 1.2-1.2 1.2H4.4c-.66 0-1.2-.54-1.2-1.2V4.6Zm1.8.6v9.6h10V5.2H5Z"/>
@@ -6040,6 +6167,15 @@ ${content}
     }
     textarea.focus();
     dispatchEditorEvents(textarea);
+  }
+  function convertWholeTextareaToBBCode(textarea) {
+    const converted = md2bbcode.markdownToBBCode(textarea.value);
+    if (converted === textarea.value) return false;
+    textarea.value = converted;
+    textarea.focus();
+    textarea.setSelectionRange(0, converted.length);
+    dispatchEditorEvents(textarea);
+    return true;
   }
   async function convertContentEditable(editor, direction, chatMode = false) {
     var _a2;
@@ -6117,31 +6253,30 @@ ${content}
   }
   function addConversionButtons(toolbar, textarea) {
     if (toolbar.querySelector('[data-md2bbcode-toolbar="true"]')) return;
-    const mode = getSetting("toolbarButtons", "both");
-    if (mode === "none") return;
-    const convertBtn = createToolbarButton(
-      `${SCRIPT_CLASS}ConvertBtn`,
-      "Markdown \u8F6C BBCode\uFF08\u6709\u9009\u533A\u65F6\u53EA\u8F6C\u6362\u9009\u533A\uFF09",
-      markdownIcon
-    );
-    bindConvertButton(convertBtn, textarea, "markdown-to-bbcode");
     const cleanBtn = Array.from(toolbar.children).find((child) => {
       var _a2;
       return (_a2 = child.classList) == null ? void 0 : _a2.contains("tool_clean");
     });
-    if (cleanBtn) {
-      toolbar.insertBefore(convertBtn, cleanBtn);
-    } else {
-      toolbar.append(convertBtn);
+    const mode = normalizeButtonMode(getSetting("toolbarButtons", "both"));
+    if (mode === "none") return;
+    let insertionPoint = cleanBtn || null;
+    if (shouldShowMarkdownToBBCode(mode)) {
+      const convertBtn = createToolbarButton(
+        `${SCRIPT_CLASS}ConvertBtn`,
+        "Markdown \u8F6C BBCode\uFF08\u6709\u9009\u533A\u65F6\u53EA\u8F6C\u6362\u9009\u533A\uFF09",
+        markdownIcon
+      );
+      bindConvertButton(convertBtn, textarea, "markdown-to-bbcode");
+      toolbar.insertBefore(convertBtn, insertionPoint);
     }
-    if (mode === "both") {
+    if (shouldShowBBCodeToMarkdown(mode)) {
       const reverseBtn = createToolbarButton(
         `${SCRIPT_CLASS}ReverseBtn`,
         "BBCode \u8F6C Markdown\uFF08\u6709\u9009\u533A\u65F6\u53EA\u8F6C\u6362\u9009\u533A\uFF09",
         bbcodeIcon
       );
       bindConvertButton(reverseBtn, textarea, "bbcode-to-markdown");
-      toolbar.insertBefore(reverseBtn, convertBtn.nextSibling);
+      toolbar.insertBefore(reverseBtn, insertionPoint);
     }
   }
   function addChatConversionButtons(editor) {
@@ -6160,16 +6295,11 @@ ${content}
     const headerButtons = chatWindow.querySelector(".header-buttons");
     if (!headerButtons) return;
     if (headerButtons.querySelector('[data-md2bbcode="true"]')) return;
-    const mode = getSetting("chatButtons", "both");
+    const mode = normalizeButtonMode(getSetting("chatButtons", "both"));
     if (mode === "none") {
       editor.dataset.md2bbcodeEnhanced = "true";
       return;
     }
-    const convertBtn = createChatButton(
-      `${SCRIPT_CLASS}ChatConvertBtn`,
-      "Markdown \u8F6C BBCode\uFF08\u6709\u9009\u533A\u65F6\u53EA\u8F6C\u6362\u9009\u533A\uFF09",
-      markdownIcon
-    );
     function bindChatButton(button, direction) {
       button.addEventListener("click", async (event) => {
         event.preventDefault();
@@ -6187,21 +6317,25 @@ ${content}
         }
       });
     }
-    bindChatButton(convertBtn, "markdown-to-bbcode");
     const searchBtn = headerButtons.querySelector("#dollars-search-btn");
-    if (searchBtn) {
-      headerButtons.insertBefore(convertBtn, searchBtn);
-    } else {
-      headerButtons.prepend(convertBtn);
+    let insertionPoint = searchBtn || headerButtons.firstChild;
+    if (shouldShowMarkdownToBBCode(mode)) {
+      const convertBtn = createChatButton(
+        `${SCRIPT_CLASS}ChatConvertBtn`,
+        "Markdown \u8F6C BBCode\uFF08\u6709\u9009\u533A\u65F6\u53EA\u8F6C\u6362\u9009\u533A\uFF09",
+        markdownIcon
+      );
+      bindChatButton(convertBtn, "markdown-to-bbcode");
+      headerButtons.insertBefore(convertBtn, insertionPoint);
     }
-    if (mode === "both") {
+    if (shouldShowBBCodeToMarkdown(mode)) {
       const reverseBtn = createChatButton(
         `${SCRIPT_CLASS}ChatReverseBtn`,
         "BBCode \u8F6C Markdown\uFF08\u6709\u9009\u533A\u65F6\u53EA\u8F6C\u6362\u9009\u533A\uFF09",
         bbcodeIcon
       );
       bindChatButton(reverseBtn, "bbcode-to-markdown");
-      headerButtons.insertBefore(reverseBtn, searchBtn || convertBtn);
+      headerButtons.insertBefore(reverseBtn, insertionPoint);
     }
     editor.dataset.md2bbcodeEnhanced = "true";
   }
@@ -6212,6 +6346,7 @@ ${content}
     if (textarea.id === "SayInput") return false;
     if (textarea.getAttribute("name") === "say_input") return false;
     if (textarea.closest(".markItUp")) return true;
+    if (isMoreBBCodeTarget(textarea)) return true;
     const editorArea = textarea.closest([
       "#comment_box",
       ".reply_box",
@@ -6238,6 +6373,47 @@ ${content}
     if (/^(content|msg|comment|reply|post|blog|topic|description|summary|text|body)$/i.test(name)) return true;
     return false;
   }
+  function findMarkdownLikeTextareas(form) {
+    return Array.from(form.querySelectorAll("textarea")).filter((textarea) => {
+      if (!isEditorTextarea(textarea)) return false;
+      const value = String(textarea.value || "").trim();
+      if (!value) return false;
+      return md2bbcode.looksLikeMarkdown(value);
+    });
+  }
+  function shouldGuardMarkdownSubmission() {
+    return getSetting("submitGuard", "on") === "on";
+  }
+  function interceptMarkdownSubmission(form) {
+    if (!(form instanceof HTMLFormElement)) return false;
+    if (!shouldGuardMarkdownSubmission()) return false;
+    const textareas = findMarkdownLikeTextareas(form);
+    if (!textareas.length) return false;
+    const shouldConvert = window.confirm(
+      "\u68C0\u6D4B\u5230\u4F60\u53EF\u80FD\u76F4\u63A5\u5199\u4E86 Markdown\u3002\n\n\u70B9\u51FB\u201C\u786E\u5B9A\u201D\u4F1A\u5148\u8F6C\u6362\u4E3A BBCode\uFF0C\u5E76\u53D6\u6D88\u672C\u6B21\u53D1\u9001\uFF1B\u4F60\u53EF\u4EE5\u68C0\u67E5\u7ED3\u679C\u540E\u518D\u624B\u52A8\u70B9\u51FB\u4E00\u6B21\u53D1\u9001\u3002"
+    );
+    if (!shouldConvert) return false;
+    textareas.forEach(convertWholeTextareaToBBCode);
+    return true;
+  }
+  function guardMarkdownSubmission(event) {
+    var _a2;
+    const form = event.target;
+    if (!interceptMarkdownSubmission(form)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    (_a2 = event.stopImmediatePropagation) == null ? void 0 : _a2.call(event);
+  }
+  function guardMarkdownSubmitClick(event) {
+    var _a2;
+    const target = event.target instanceof Element ? event.target : null;
+    const submitter = target == null ? void 0 : target.closest('button, input[type="submit"], input[type="image"]');
+    const form = (submitter == null ? void 0 : submitter.form) || (submitter == null ? void 0 : submitter.closest("form"));
+    if (!interceptMarkdownSubmission(form)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    (_a2 = event.stopImmediatePropagation) == null ? void 0 : _a2.call(event);
+  }
   function enhanceMarkItUpHeader(header) {
     var _a2;
     if (header.dataset.md2bbcodeEnhanced === "true") return;
@@ -6249,19 +6425,6 @@ ${content}
     header.dataset.md2bbcodeEnhanced = "true";
     addConversionButtons(toolbar, textarea);
   }
-  function enhancePlainTextarea(textarea) {
-    if (!textarea.isConnected) return;
-    if (textarea.dataset.md2bbcodeEnhanced === "true") return;
-    if (textarea.closest(".markItUp")) return;
-    if (!isEditorTextarea(textarea)) return;
-    const header = document.createElement("div");
-    header.className = `markItUpHeader ${SCRIPT_CLASS}PlainHeader`;
-    const toolbar = document.createElement("ul");
-    header.append(toolbar);
-    textarea.before(header);
-    textarea.dataset.md2bbcodeEnhanced = "true";
-    addConversionButtons(toolbar, textarea);
-  }
   function enhanceAllEditors() {
     document.querySelectorAll(".markItUpHeader:not([data-md2bbcode-enhanced])").forEach(enhanceMarkItUpHeader);
   }
@@ -6271,11 +6434,20 @@ ${content}
     if (textarea.dataset.md2bbcodeEnhanced === "true") return;
     if (!isEditorTextarea(textarea)) return;
     textarea.dataset.md2bbcodePlainEnhanceScheduled = "true";
+    if (isMoreBBCodeTarget(textarea) && !textarea.closest(".markItUp")) {
+      waitForMoreBBCodeMarkItUp(textarea, () => {
+        delete textarea.dataset.md2bbcodePlainEnhanceScheduled;
+        if (textarea.closest(".markItUp")) {
+          enhanceAllEditors();
+        }
+      });
+      return;
+    }
     setTimeout(() => {
       delete textarea.dataset.md2bbcodePlainEnhanceScheduled;
       if (!textarea.isConnected) return;
-      if (!textarea.closest(".markItUp") && textarea.dataset.md2bbcodeEnhanced !== "true") {
-        enhancePlainTextarea(textarea);
+      if (textarea.closest(".markItUp")) {
+        enhanceAllEditors();
       }
     }, delay);
   }
@@ -6326,18 +6498,6 @@ ${content}
     .${SCRIPT_CLASS}Loading a {
       opacity: .42;
     }
-    .${SCRIPT_CLASS}PlainHeader {
-      margin: 0 0 4px;
-      min-height: 24px;
-    }
-    .${SCRIPT_CLASS}PlainHeader ul {
-      display: flex;
-      align-items: center;
-      gap: 2px;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
     .${SCRIPT_CLASS}ChatBtn {
       display: flex;
       align-items: center;
@@ -6386,29 +6546,43 @@ ${content}
       type: "options",
       config: [
         {
-          title: "Re:Dollars \u804A\u5929\u6309\u94AE",
+          title: "Re:Dollars \u804A\u5929\u8F6C\u6362\u6309\u94AE",
           name: "md2bbcode_chat",
           type: "radio",
           defaultValue: "both",
-          getCurrentValue: () => getSetting("chatButtons", "both"),
+          getCurrentValue: () => normalizeButtonMode(getSetting("chatButtons", "both")),
           onChange: (value) => setSetting("chatButtons", value),
           options: [
-            { value: "both", label: "\u663E\u793A\u4E24\u4E2A\u6309\u94AE" },
-            { value: "markdown-only", label: "\u53EA\u663E\u793A Markdown\u2192BBCode" },
+            { value: "both", label: "\u663E\u793A\u4E24\u4E2A\u65B9\u5411" },
+            { value: "md-to-bbcode", label: "\u4EC5 Markdown \u8F6C BBCode" },
+            { value: "bbcode-to-md", label: "\u4EC5 BBCode \u8F6C Markdown" },
             { value: "none", label: "\u4E0D\u663E\u793A" }
           ]
         },
         {
-          title: "\u7F16\u8F91\u5668\u5DE5\u5177\u680F\u6309\u94AE",
+          title: "\u7F16\u8F91\u5668\u5DE5\u5177\u680F\u8F6C\u6362\u6309\u94AE",
           name: "md2bbcode_toolbar",
           type: "radio",
           defaultValue: "both",
-          getCurrentValue: () => getSetting("toolbarButtons", "both"),
+          getCurrentValue: () => normalizeButtonMode(getSetting("toolbarButtons", "both")),
           onChange: (value) => setSetting("toolbarButtons", value),
           options: [
-            { value: "both", label: "\u663E\u793A\u4E24\u4E2A\u6309\u94AE" },
-            { value: "markdown-only", label: "\u53EA\u663E\u793A Markdown\u2192BBCode" },
+            { value: "both", label: "\u663E\u793A\u4E24\u4E2A\u65B9\u5411" },
+            { value: "md-to-bbcode", label: "\u4EC5 Markdown \u8F6C BBCode" },
+            { value: "bbcode-to-md", label: "\u4EC5 BBCode \u8F6C Markdown" },
             { value: "none", label: "\u4E0D\u663E\u793A" }
+          ]
+        },
+        {
+          title: "\u53D1\u9001\u524D Markdown \u63D0\u9192",
+          name: "md2bbcode_submit_guard",
+          type: "radio",
+          defaultValue: "on",
+          getCurrentValue: () => getSetting("submitGuard", "on"),
+          onChange: (value) => setSetting("submitGuard", value),
+          options: [
+            { value: "on", label: "\u542F\u7528" },
+            { value: "off", label: "\u505C\u7528" }
           ]
         }
       ]
@@ -6456,6 +6630,8 @@ ${content}
     }
   });
   observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
+  document.addEventListener("click", guardMarkdownSubmitClick, true);
+  document.addEventListener("submit", guardMarkdownSubmission, true);
   document.addEventListener("focusin", (event) => {
     var _a2;
     const target = event.target;

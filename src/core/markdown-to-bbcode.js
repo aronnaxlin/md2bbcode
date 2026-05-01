@@ -7,8 +7,16 @@ const markdown = new MarkdownIt({
   typographer: false
 });
 
+const markdownDetector = new MarkdownIt({
+  html: false,
+  linkify: false,
+  breaks: false,
+  typographer: false
+});
+
 const unsafeProtocol = /^(?:javascript|vbscript|file|data):/i;
 const safeImageDataProtocol = /^data:image\/(?:png|gif|jpeg|webp);/i;
+const knownBBCodePattern = /\[(?:\/?(?:b|i|u|s|url|img|quote|code|mask|spoiler|color|size|font|align|left|center|right|list|ul|ol|olist|\*)|(?:url|img|quote|code|color|size|font|align)=[^\]]+)\]/i;
 
 markdown.validateLink = url => !unsafeProtocol.test(url) || safeImageDataProtocol.test(url);
 markdown.normalizeLink = url => url;
@@ -508,6 +516,70 @@ function normalizeMarkdown(value) {
     .trim();
 }
 
+function scoreMarkdownInlineChildren(children) {
+  let score = 0;
+
+  for (const child of children || []) {
+    switch (child.type) {
+      case 'image':
+        score += 3;
+        break;
+      case 'link_open':
+        score += 3;
+        break;
+      case 'code_inline':
+        score += 2;
+        break;
+      case 'strong_open':
+      case 's_open':
+        score += 2;
+        break;
+      case 'em_open':
+        score += 1;
+        break;
+      default:
+        break;
+    }
+  }
+
+  return score;
+}
+
+export function looksLikeMarkdown(source) {
+  const text = String(source || '').trim();
+  if (!text || text.length < 6) return false;
+  if (knownBBCodePattern.test(text)) return false;
+
+  const tokens = markdownDetector.parse(text, {});
+  let score = 0;
+
+  for (const token of tokens) {
+    switch (token.type) {
+      case 'heading_open':
+      case 'fence':
+      case 'code_block':
+      case 'table_open':
+        score += 3;
+        break;
+      case 'blockquote_open':
+      case 'bullet_list_open':
+      case 'ordered_list_open':
+      case 'hr':
+        score += 2;
+        break;
+      case 'inline':
+        score += scoreMarkdownInlineChildren(token.children);
+        break;
+      default:
+        break;
+    }
+
+    if (score >= 2) return true;
+  }
+
+  return false;
+}
+
 // ===== Chat (Re:Dollars) limited converter =====
 // Re:Dollars only supports: [b], [i], [u], [s], [code], [url], [mask]
 
@@ -621,5 +693,6 @@ export const md2bbcode = {
   markdownToBBCode,
   bbcodeToMarkdown,
   markdownToBBCodeChat,
-  bbcodeToMarkdownChat
+  bbcodeToMarkdownChat,
+  looksLikeMarkdown
 };
