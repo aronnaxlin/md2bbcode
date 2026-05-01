@@ -13,3 +13,11 @@ Thumbs.db
 *.png
 demo/*
 to_be_compatible
+coverage/
+*.tgz
+*.tar.gz
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
