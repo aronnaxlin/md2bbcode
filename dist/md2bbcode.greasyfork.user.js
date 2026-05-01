@@ -181,7 +181,14 @@ ${indent}${fence}`
 function protectExistingBBCode(source, protectedSnippets) {
   const tagPattern = protectableBBCodeTags.join('|');
   const blockPattern = new RegExp(`\\[(${tagPattern})(?:=[^\\]]*)?\\][\\s\\S]*?\\[/\\1\\]`, 'gi');
-  return source.replace(blockPattern, match => protectPreprocessedBBCode(protectedSnippets, match));
+  return source.replace(blockPattern, (match, tag) => {
+    let cleaned = match;
+    const normalizedTag = tag.toLowerCase();
+    if (normalizedTag === 'quote' || normalizedTag === 'code') {
+      cleaned = match.replace(new RegExp(`\\[${tag}=[^\\]]*\\]`, 'gi'), `[${tag}]`);
+    }
+    return protectPreprocessedBBCode(protectedSnippets, cleaned);
+  });
 }
 
 function replaceInnermostTag(source, openTag, closeTag, processor) {

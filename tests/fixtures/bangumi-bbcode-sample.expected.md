@@ -2,7 +2,7 @@
 
 这是一段混合格式：**粗体**、*斜体*、~~删除线~~、<u>下划线</u>。
 
-<span style="color: red">红色文字</span> 和 <span style="font-size: 18px">较大文字</span>，还有 [font=serif]字体标记[/font]。
+<span style="color: red">红色文字</span> 和 <span style="font-size: 18px">较大文字</span>。
 
 [Bangumi 小组话题](https://bangumi.tv/group/topic/459295)
 [https://bangumi.tv/help/bbcode](https://bangumi.tv/help/bbcode)
@@ -24,7 +24,5 @@ console.log(site);
 
 - 无序第一项
 - 无序第二项，包含 **粗体**
-
-[olist][*]有序第一项[*]有序第二项[/olist]
 
 [unknown]未知标签保持原样[/unknown]

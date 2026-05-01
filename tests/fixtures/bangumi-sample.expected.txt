@@ -1,0 +1,57 @@
+[b][size=24]Markdown 转 BBCode 测试日志[/size][/b]
+
+这是一段中文正文，包含 [b]粗体[/b]、[i]斜体[/i]、[s]删除线[/s]，以及 [size=12][color=#666]inline code[/color][/size]。
+
+也测试一下中文紧贴格式：这是[b]中文粗体[/b]和[i]中文斜体[/i]。
+
+[b][size=22]链接与图片[/size][/b]
+
+[url=https://bangumi.tv]Bangumi[/url] 和 [url=https://example.com/a_(b)]带括号的链接[/url]。
+
+[img]https://lsky.ry.mk/i/2026/04/27/041526baa0663.webp[/img]
+
+危险链接应保持原样，不应该变成 BBCode：
+
+[bad](javascript:alert(1))
+
+![bad](javascript:alert(1))
+
+[b][size=22]引用[/size][/b]
+
+[quote]第一行引用
+第二行引用，包含 [b]粗体[/b] 和 [url=https://bgm.tv]链接[/url]。[/quote]
+
+[b][size=22]列表[/size][/b]
+
+* 无序项目 A
+
+* 无序项目 B，包含 [size=12][color=#666]code[/color][/size]
+
+* 无序项目 C
+
+1. 有序项目 A
+
+2. 有序项目 B
+
+3. 有序项目 C
+
+[b][size=22]代码块[/size][/b]
+
+[code]const site = 'Bangumi';
+console.log(`Hello, ${site}`);[/code]
+
+[b][size=22]Bangumi 扩展写法[/size][/b]
+
+[u]下划线文字[/u]
+
+[mask]这是一段剧透内容[/mask]
+
+[color=yellowgreen]折叠标题[/color] [mask]这里是 details 中的隐藏内容。 可以用来模拟长剧透。[/mask]
+
+___________________________________________________________________________
+
+[b][size=22]表格退化[/size][/b]
+
+项目 | 结果 |
+中文 | 可读 |
+表格 | 退化为纯文本 |

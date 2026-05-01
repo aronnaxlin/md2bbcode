@@ -5552,7 +5552,14 @@ ${indent}${fence2}`
   function protectExistingBBCode(source, protectedSnippets) {
     const tagPattern = protectableBBCodeTags.join("|");
     const blockPattern = new RegExp(`\\[(${tagPattern})(?:=[^\\]]*)?\\][\\s\\S]*?\\[/\\1\\]`, "gi");
-    return source.replace(blockPattern, (match2) => protectPreprocessedBBCode(protectedSnippets, match2));
+    return source.replace(blockPattern, (match2, tag) => {
+      let cleaned = match2;
+      const normalizedTag = tag.toLowerCase();
+      if (normalizedTag === "quote" || normalizedTag === "code") {
+        cleaned = match2.replace(new RegExp(`\\[${tag}=[^\\]]*\\]`, "gi"), `[${tag}]`);
+      }
+      return protectPreprocessedBBCode(protectedSnippets, cleaned);
+    });
   }
   function replaceInnermostTag(source, openTag, closeTag, processor) {
     let result = source;

@@ -8,6 +8,10 @@ import {
   markdownToBBCodeChat
 } from '../src/core/markdown-to-bbcode.js';
 
+function readFixture(name) {
+  return readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
+}
+
 const cases = [
   ['**粗体**', '[b]粗体[/b]'],
   ['__粗体__', '[b]粗体[/b]'],
@@ -217,6 +221,21 @@ assert.equal(
   '[photo=123]example.jpg[/photo] [b]粗体[/b]'
 );
 
+assert.equal(
+  markdownToBBCode('[quote=Alice]引用[/quote]'),
+  '[quote]引用[/quote]'
+);
+
+assert.equal(
+  markdownToBBCode('[code=js]const a = 1;[/code]'),
+  '[code]const a = 1;[/code]'
+);
+
+assert.equal(
+  markdownToBBCode('[quote=Aronnax]\n第一行\n第二行\n[/quote]'),
+  '[quote]第一行\n第二行[/quote]'
+);
+
 const bbcodeProtectedOnce = markdownToBBCode('[img]https://example.com/a.png[/img] **粗体**');
 assert.equal(bbcodeProtectedOnce, '[img]https://example.com/a.png[/img] [b]粗体[/b]');
 assert.equal(markdownToBBCode(bbcodeProtectedOnce), bbcodeProtectedOnce);
@@ -231,16 +250,20 @@ assert.equal(
   '**粗体** [img]https://example.com/a.png[/img]'
 );
 
-const sampleBBCode = readFileSync(new URL('./fixtures/bangumi-bbcode-sample.txt', import.meta.url), 'utf8');
-const sampleMarkdown = readFileSync(new URL('./fixtures/bangumi-bbcode-sample.expected.md', import.meta.url), 'utf8');
+const sampleMarkdownSource = readFixture('bangumi-sample.md');
+const sampleBBCodeExpected = readFixture('bangumi-sample.expected.txt');
+assert.equal(markdownToBBCode(sampleMarkdownSource), sampleBBCodeExpected.trim());
+
+const sampleBBCode = readFixture('bangumi-bbcode-sample.txt');
+const sampleMarkdown = readFixture('bangumi-bbcode-sample.expected.md');
 assert.equal(bbcodeToMarkdown(sampleBBCode), sampleMarkdown.trim());
 
-const mixedMarkdownProtection = readFileSync(new URL('./fixtures/mixed-markdown-code-protection.md', import.meta.url), 'utf8');
-const mixedMarkdownProtectionExpected = readFileSync(new URL('./fixtures/mixed-markdown-code-protection.expected.txt', import.meta.url), 'utf8');
+const mixedMarkdownProtection = readFixture('mixed-markdown-code-protection.md');
+const mixedMarkdownProtectionExpected = readFixture('mixed-markdown-code-protection.expected.txt');
 assert.equal(markdownToBBCode(mixedMarkdownProtection), mixedMarkdownProtectionExpected.trim());
 
-const mixedBBCodeProtection = readFileSync(new URL('./fixtures/mixed-bbcode-code-protection.txt', import.meta.url), 'utf8');
-const mixedBBCodeProtectionExpected = readFileSync(new URL('./fixtures/mixed-bbcode-code-protection.expected.md', import.meta.url), 'utf8');
+const mixedBBCodeProtection = readFixture('mixed-bbcode-code-protection.txt');
+const mixedBBCodeProtectionExpected = readFixture('mixed-bbcode-code-protection.expected.md');
 assert.equal(bbcodeToMarkdown(mixedBBCodeProtection), mixedBBCodeProtectionExpected.trim());
 
-console.log(`ok ${cases.length + reverseCases.length + 49} markdown/bbcode conversion cases`);
+console.log(`ok ${cases.length + reverseCases.length + 54} markdown/bbcode conversion cases`);
