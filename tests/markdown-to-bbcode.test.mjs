@@ -273,4 +273,50 @@ const mixedBBCodeProtection = readFixture('mixed-bbcode-code-protection.txt');
 const mixedBBCodeProtectionExpected = readFixture('mixed-bbcode-code-protection.expected.md');
 assert.equal(bbcodeToMarkdown(mixedBBCodeProtection), mixedBBCodeProtectionExpected.trim());
 
+// LaTeX math support (requires { latex: true } option)
+const latexOpts = { latex: true };
+
+assert.equal(
+  markdownToBBCode('$x^2$', latexOpts),
+  '[latex]x^2[/latex]'
+);
+
+assert.equal(
+  markdownToBBCode('$$x^2$$', latexOpts),
+  '[code][latex]x^2[/latex][/code]'
+);
+
+assert.equal(
+  markdownToBBCode('$$\nx^2 + y^2 = z^2\n$$', latexOpts),
+  '[code][latex]\nx^2 + y^2 = z^2\n[/latex][/code]'
+);
+
+assert.equal(
+  markdownToBBCode('行内公式 $E=mc^2$ 结束', latexOpts),
+  '行内公式 [latex]E=mc^2[/latex] 结束'
+);
+
+// $ with spaces around content should NOT be treated as math (price-like text)
+assert.equal(
+  markdownToBBCode('价格 $5 和 $10', latexOpts),
+  '价格 $5 和 $10'
+);
+
+// Math inside code blocks must NOT be converted
+assert.equal(
+  markdownToBBCode('```\n$x^2$\n```', latexOpts),
+  '[code]$x^2$[/code]'
+);
+
+assert.equal(
+  markdownToBBCode('`$x^2$`', latexOpts),
+  '[size=12]$x^2$[/size]'
+);
+
+// Without the option, $ is left as-is
+assert.equal(
+  markdownToBBCode('$x^2$'),
+  '$x^2$'
+);
+
 console.log(`ok ${cases.length + reverseCases.length + 57} markdown/bbcode conversion cases`);

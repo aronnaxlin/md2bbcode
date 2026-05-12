@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bangumi Markdown 转 BBCode
 // @namespace    bangumi.md2bbcode
-// @version      0.0.4
+// @version      0.0.5
 // @description  为 Bangumi 编辑器添加 Markdown 转 BBCode
 // @author       aronnax
 // @icon         https://bgm.tv/img/favicon.ico
@@ -199,6 +199,21 @@
       return String(value).replace(/MD2BBCODE_PLACEHOLDER_(\d+)_TOKEN/g, (_match, index) => protectedSnippets[Number(index)] || '');
     }
     
+    function preprocessLatexMath(source, protectedSnippets) {
+      // Display math $$...$$ → [code][latex]...[/latex][/code]
+      let result = source.replace(/\$\$([\s\S]*?)\$\$/g, (_match, content) =>
+        protectPreprocessedBBCode(protectedSnippets, `[code][latex]${content}[/latex][/code]`)
+      );
+    
+      // Inline math $...$ — content must not start/end with space (avoids matching prices like $5 and $10)
+      result = result.replace(/\$([^$\n]+?)\$/g, (_match, content) => {
+        if (content[0] === ' ' || content[content.length - 1] === ' ') return _match;
+        return protectPreprocessedBBCode(protectedSnippets, `[latex]${content}[/latex]`);
+      });
+    
+      return result;
+    }
+    
     function protectMarkdownCodeContents(source, protectedSnippets) {
       let result = String(source).replace(
         /(^|\n)([ \t]*)(`{3,}|~{3,})([^\n]*)\n([\s\S]*?)\n\2\3[ \t]*(?=\n|$)/g,
@@ -256,12 +271,16 @@
       return result;
     }
     
-    function preprocessMarkdown(source) {
+    function preprocessMarkdown(source, options = {}) {
       const protectedSnippets = [];
       let result = protectMarkdownCodeContents(
         String(source).replace(/<!--[\s\S]*?-->/g, ''),
         protectedSnippets
       );
+    
+      if (options.latex) {
+        result = preprocessLatexMath(result, protectedSnippets);
+      }
     
       result = result.replace(/<img\b[^>]*>/gi, fullMatch => {
         const imageUploadBBCode = preprocessImageUploadHtmlImage(fullMatch);
@@ -892,9 +911,9 @@
       return converted.replace(/\x00LINK(\d+)\x00/g, (_m, index) => protectedLinks[Number(index)]);
     }
     
-    function markdownToBBCode(source) {
+    function markdownToBBCode(source, options = {}) {
       if (!source) return '';
-      const preprocessed = preprocessMarkdown(source);
+      const preprocessed = preprocessMarkdown(source, options);
       const rendered = markdown.render(preprocessed.text, { listStack: [] });
       return normalizeBBCode(restorePreprocessedBBCode(rendered, preprocessed.protectedSnippets));
     }
@@ -904,9 +923,9 @@
       return normalizeMarkdown(renderBBCodeNodeAsMarkdownChat(parseBBCode(String(source))));
     }
     
-    function markdownToBBCodeChat(source) {
+    function markdownToBBCodeChat(source, options = {}) {
       if (!source) return '';
-      const preprocessed = preprocessMarkdown(source);
+      const preprocessed = preprocessMarkdown(source, options);
       const rendered = chatMarkdown.render(preprocessed.text);
       return normalizeBBCode(restorePreprocessedBBCode(rendered, preprocessed.protectedSnippets));
     }
@@ -1108,6 +1127,10 @@
       textarea.dispatchEvent(new Event('change', { bubbles: true }));
     }
     
+    function getLatexOptions() {
+      return { latex: typeof window.katex !== 'undefined' };
+    }
+    
     async function convertSelection(textarea, direction) {
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
@@ -1115,7 +1138,7 @@
       const source = hasSelection ? textarea.value.slice(start, end) : textarea.value;
       const converter = direction === 'bbcode-to-markdown'
         ? md2bbcode.bbcodeToMarkdown
-        : md2bbcode.markdownToBBCode;
+        : source => md2bbcode.markdownToBBCode(source, getLatexOptions());
       const converted = await Promise.resolve(converter(source));
     
       if (hasSelection) {
@@ -1130,7 +1153,7 @@
     }
     
     function convertWholeTextareaToBBCode(textarea) {
-      const converted = md2bbcode.markdownToBBCode(textarea.value);
+      const converted = md2bbcode.markdownToBBCode(textarea.value, getLatexOptions());
       if (converted === textarea.value) return false;
     
       textarea.value = converted;
@@ -1163,7 +1186,9 @@
     
       const converter = direction === 'bbcode-to-markdown'
         ? (chatMode ? md2bbcode.bbcodeToMarkdownChat : md2bbcode.bbcodeToMarkdown)
-        : (chatMode ? md2bbcode.markdownToBBCodeChat : md2bbcode.markdownToBBCode);
+        : (source => chatMode
+            ? md2bbcode.markdownToBBCodeChat(source, getLatexOptions())
+            : md2bbcode.markdownToBBCode(source, getLatexOptions()));
       const converted = await Promise.resolve(converter(source));
     
       if (hasSelection && range) {

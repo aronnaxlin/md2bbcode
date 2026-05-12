@@ -4,7 +4,7 @@ import { build } from 'esbuild';
 const commonHeader = `// ==UserScript==
 // @name         Bangumi Markdown 转 BBCode
 // @namespace    bangumi.md2bbcode
-// @version      0.0.4
+// @version      0.0.5
 // @description  为 Bangumi 编辑器添加 Markdown 转 BBCode
 // @author       aronnax
 // @icon         https://bgm.tv/img/favicon.ico
@@ -48,9 +48,9 @@ const greasyForkCore = core
   .replace(/^import MarkdownIt from 'markdown-it';\r?\n/, '')
   .replace(/^import \{ imageUploadBBCodeTags, preprocessImageUploadHtmlImage, renderImageUploadPhoto \} from '\.\.\/compatible\/image_upload\.js';\r?\n/, '')
   .replace(/\bnew MarkdownIt\(/g, 'window.markdownit(')
-  .replace('export function markdownToBBCode(source) {', 'function markdownToBBCode(source) {')
+  .replace('export function markdownToBBCode(source, options = {}) {', 'function markdownToBBCode(source, options = {}) {')
   .replace('export function bbcodeToMarkdown(source) {', 'function bbcodeToMarkdown(source) {')
-  .replace('export function markdownToBBCodeChat(source) {', 'function markdownToBBCodeChat(source) {')
+  .replace('export function markdownToBBCodeChat(source, options = {}) {', 'function markdownToBBCodeChat(source, options = {}) {')
   .replace('export function bbcodeToMarkdownChat(source) {', 'function bbcodeToMarkdownChat(source) {')
   .replace('export function looksLikeMarkdown(source) {', 'function looksLikeMarkdown(source) {')
   .replace(/export const md2bbcode = \{\r?\n  markdownToBBCode,\r?\n  bbcodeToMarkdown,\r?\n  markdownToBBCodeChat,\r?\n  bbcodeToMarkdownChat,\r?\n  looksLikeMarkdown\r?\n\};/, 'const md2bbcode = {\n  markdownToBBCode,\n  bbcodeToMarkdown,\n  markdownToBBCodeChat,\n  bbcodeToMarkdownChat,\n  looksLikeMarkdown\n};');

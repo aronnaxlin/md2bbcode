@@ -133,6 +133,10 @@ function dispatchEditorEvents(textarea) {
   textarea.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
+function getLatexOptions() {
+  return { latex: typeof window.katex !== 'undefined' };
+}
+
 async function convertSelection(textarea, direction) {
   const start = textarea.selectionStart;
   const end = textarea.selectionEnd;
@@ -140,7 +144,7 @@ async function convertSelection(textarea, direction) {
   const source = hasSelection ? textarea.value.slice(start, end) : textarea.value;
   const converter = direction === 'bbcode-to-markdown'
     ? md2bbcode.bbcodeToMarkdown
-    : md2bbcode.markdownToBBCode;
+    : source => md2bbcode.markdownToBBCode(source, getLatexOptions());
   const converted = await Promise.resolve(converter(source));
 
   if (hasSelection) {
@@ -155,7 +159,7 @@ async function convertSelection(textarea, direction) {
 }
 
 function convertWholeTextareaToBBCode(textarea) {
-  const converted = md2bbcode.markdownToBBCode(textarea.value);
+  const converted = md2bbcode.markdownToBBCode(textarea.value, getLatexOptions());
   if (converted === textarea.value) return false;
 
   textarea.value = converted;
@@ -188,7 +192,9 @@ async function convertContentEditable(editor, direction, chatMode = false) {
 
   const converter = direction === 'bbcode-to-markdown'
     ? (chatMode ? md2bbcode.bbcodeToMarkdownChat : md2bbcode.bbcodeToMarkdown)
-    : (chatMode ? md2bbcode.markdownToBBCodeChat : md2bbcode.markdownToBBCode);
+    : (source => chatMode
+        ? md2bbcode.markdownToBBCodeChat(source, getLatexOptions())
+        : md2bbcode.markdownToBBCode(source, getLatexOptions()));
   const converted = await Promise.resolve(converter(source));
 
   if (hasSelection && range) {

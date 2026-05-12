@@ -111,6 +111,21 @@ function restorePreprocessedBBCode(value, protectedSnippets) {
   return String(value).replace(/MD2BBCODE_PLACEHOLDER_(\d+)_TOKEN/g, (_match, index) => protectedSnippets[Number(index)] || '');
 }
 
+function preprocessLatexMath(source, protectedSnippets) {
+  // Display math $$...$$ → [code][latex]...[/latex][/code]
+  let result = source.replace(/\$\$([\s\S]*?)\$\$/g, (_match, content) =>
+    protectPreprocessedBBCode(protectedSnippets, `[code][latex]${content}[/latex][/code]`)
+  );
+
+  // Inline math $...$ — content must not start/end with space (avoids matching prices like $5 and $10)
+  result = result.replace(/\$([^$\n]+?)\$/g, (_match, content) => {
+    if (content[0] === ' ' || content[content.length - 1] === ' ') return _match;
+    return protectPreprocessedBBCode(protectedSnippets, `[latex]${content}[/latex]`);
+  });
+
+  return result;
+}
+
 function protectMarkdownCodeContents(source, protectedSnippets) {
   let result = String(source).replace(
     /(^|\n)([ \t]*)(`{3,}|~{3,})([^\n]*)\n([\s\S]*?)\n\2\3[ \t]*(?=\n|$)/g,
@@ -168,12 +183,16 @@ function replaceInnermostTag(source, openTag, closeTag, processor) {
   return result;
 }
 
-function preprocessMarkdown(source) {
+function preprocessMarkdown(source, options = {}) {
   const protectedSnippets = [];
   let result = protectMarkdownCodeContents(
     String(source).replace(/<!--[\s\S]*?-->/g, ''),
     protectedSnippets
   );
+
+  if (options.latex) {
+    result = preprocessLatexMath(result, protectedSnippets);
+  }
 
   result = result.replace(/<img\b[^>]*>/gi, fullMatch => {
     const imageUploadBBCode = preprocessImageUploadHtmlImage(fullMatch);
@@ -804,9 +823,9 @@ export function bbcodeToMarkdown(source) {
   return converted.replace(/\x00LINK(\d+)\x00/g, (_m, index) => protectedLinks[Number(index)]);
 }
 
-export function markdownToBBCode(source) {
+export function markdownToBBCode(source, options = {}) {
   if (!source) return '';
-  const preprocessed = preprocessMarkdown(source);
+  const preprocessed = preprocessMarkdown(source, options);
   const rendered = markdown.render(preprocessed.text, { listStack: [] });
   return normalizeBBCode(restorePreprocessedBBCode(rendered, preprocessed.protectedSnippets));
 }
@@ -816,9 +835,9 @@ export function bbcodeToMarkdownChat(source) {
   return normalizeMarkdown(renderBBCodeNodeAsMarkdownChat(parseBBCode(String(source))));
 }
 
-export function markdownToBBCodeChat(source) {
+export function markdownToBBCodeChat(source, options = {}) {
   if (!source) return '';
-  const preprocessed = preprocessMarkdown(source);
+  const preprocessed = preprocessMarkdown(source, options);
   const rendered = chatMarkdown.render(preprocessed.text);
   return normalizeBBCode(restorePreprocessedBBCode(rendered, preprocessed.protectedSnippets));
 }
